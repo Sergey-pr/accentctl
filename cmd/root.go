@@ -28,4 +28,5 @@ func init() {
 	root.AddCommand(syncCmd)
 	root.AddCommand(statsCmd)
 	root.AddCommand(initCmd)
+	root.AddCommand(keyCmd)
 }

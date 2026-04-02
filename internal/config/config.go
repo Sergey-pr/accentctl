@@ -32,14 +32,21 @@ type Config struct {
 
 func Load() (*Config, error) {
 	viper.SetConfigName("accent")
-	viper.SetConfigType("json")
 	viper.AddConfigPath(".")
-
-	// Also support YAML and TOML
-	viper.SetConfigType("")
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("could not read config file: %w\nRun 'accentctl init' to create one", err)
+	}
+
+	// Merge accent.local.* if present values here override accent.json.
+	// This file is gitignored and is the recommended place to store apiKey.
+	local := viper.New()
+	local.SetConfigName("accent.local")
+	local.AddConfigPath(".")
+	if err := local.ReadInConfig(); err == nil {
+		if err := viper.MergeConfigMap(local.AllSettings()); err != nil {
+			return nil, fmt.Errorf("could not merge accent.local config: %w", err)
+		}
 	}
 
 	var cfg Config
@@ -47,7 +54,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	// Env var overrides
+	// Env var overrides (highest priority)
 	if v := os.Getenv("ACCENT_API_KEY"); v != "" {
 		cfg.APIKey = v
 	}

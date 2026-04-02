@@ -40,7 +40,17 @@ Create an `accent.json` file in your project root (or run `accentctl init`):
 
 YAML and TOML are also supported (`accent.yaml`, `accent.toml`).
 
-**Environment variables** override config file values:
+### Keeping your API key out of version control
+
+Run this once per project it saves the key to `accent.local.json` which is gitignored:
+
+```sh
+accentctl key set your-api-key
+```
+
+You can then commit `accent.json` without any secrets. The local file overrides `accent.json` values, so you can omit `apiKey` from the committed config entirely.
+
+**Environment variables** override both config files:
 - `ACCENT_API_KEY`
 - `ACCENT_API_URL`
 
