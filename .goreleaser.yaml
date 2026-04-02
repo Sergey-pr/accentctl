@@ -29,6 +29,7 @@ brews:
     repository:
       owner: sergey-pr
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/sergey-pr/accentctl
     description: CLI tool for the Accent translation management platform
     install: |
