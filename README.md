@@ -6,12 +6,12 @@ A CLI tool for [Accent](https://www.accent.reviews/) the open-source translation
 
 **Homebrew**
 ```sh
-brew install s-mage/tap/accentctl
+brew install sergey-pr/tap/accentctl
 ```
 
 **Go**
 ```sh
-go install github.com/s-mage/accentctl@latest
+go install github.com/sergey-pr/accentctl@latest
 ```
 
 **Download** grab a pre-built binary from the [releases page](https://github.com/sergey-pr/accentctl/releases).
