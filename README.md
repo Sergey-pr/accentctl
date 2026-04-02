@@ -1,6 +1,6 @@
 # accentctl
 
-A CLI tool for [Accent](https://www.accent.reviews/) — the open-source translation management platform.
+A CLI tool for [Accent](https://www.accent.reviews/) the open-source translation management platform.
 
 ## Install
 
@@ -14,7 +14,7 @@ brew install s-mage/tap/accentctl
 go install github.com/s-mage/accentctl@latest
 ```
 
-**Download** — grab a pre-built binary from the [releases page](https://github.com/s-mage/accentctl/releases).
+**Download** grab a pre-built binary from the [releases page](https://github.com/sergey-pr/accentctl/releases).
 
 ## Configuration
 
@@ -142,4 +142,4 @@ accentctl completion fish > ~/.config/fish/completions/accentctl.fish
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT see [LICENSE](LICENSE).
