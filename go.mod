@@ -1,4 +1,4 @@
-module github.com/s-mage/accentctl
+module github.com/sergey-pr/accentctl
 
 go 1.26.1
 

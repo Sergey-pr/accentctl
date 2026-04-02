@@ -10,9 +10,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/s-mage/accentctl/internal/api"
-	"github.com/s-mage/accentctl/internal/config"
-	"github.com/s-mage/accentctl/internal/output"
+	"github.com/sergey-pr/accentctl/internal/api"
+	"github.com/sergey-pr/accentctl/internal/config"
+	"github.com/sergey-pr/accentctl/internal/output"
 )
 
 var exportCmd = &cobra.Command{

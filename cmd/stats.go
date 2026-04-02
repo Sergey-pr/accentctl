@@ -6,9 +6,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/s-mage/accentctl/internal/api"
-	"github.com/s-mage/accentctl/internal/config"
-	"github.com/s-mage/accentctl/internal/output"
+	"github.com/sergey-pr/accentctl/internal/api"
+	"github.com/sergey-pr/accentctl/internal/config"
+	"github.com/sergey-pr/accentctl/internal/output"
 )
 
 var statsCmd = &cobra.Command{

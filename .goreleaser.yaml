@@ -27,9 +27,9 @@ archives:
 brews:
   - name: accentctl
     repository:
-      owner: s-mage
+      owner: sergey-pr
       name: homebrew-tap
-    homepage: https://github.com/s-mage/accentctl
+    homepage: https://github.com/sergey-pr/accentctl
     description: CLI tool for the Accent translation management platform
     install: |
       bin.install "accentctl"

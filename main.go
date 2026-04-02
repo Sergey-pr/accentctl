@@ -1,6 +1,6 @@
 package main
 
-import "github.com/s-mage/accentctl/cmd"
+import "github.com/sergey-pr/accentctl/cmd"
 
 func main() {
 	cmd.Execute()
