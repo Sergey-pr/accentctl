@@ -77,7 +77,7 @@ Download translations from Accent and write them to your local filesystem.
 
 ```sh
 accentctl export
-accentctl export --order-by key-asc
+accentctl export --order-by key
 ```
 
 ### `accentctl sync`
@@ -118,8 +118,13 @@ accentctl sync --write --add-translations --merge-type force
 
 | Value | Behaviour |
 |---|---|
-| `index` | Keys appear in the order they were created in Accent |
-| `key-asc` | Keys are sorted alphabetically |
+| `index` | File insertion order (default) |
+| `-index` | Reverse insertion order |
+| `key` | Alphabetical ascending |
+| `-key` | Alphabetical descending |
+| `updated` | Last updated ascending |
+| `-updated` | Last updated descending |
+
 
 ### `accentctl stats`
 
@@ -136,6 +141,23 @@ Create an `accent.json` config file.
 ```sh
 accentctl init
 ```
+
+## Improvements over accent-cli
+
+`accentctl` is a Go rewrite of the official TypeScript [accent-cli](https://github.com/mirego/accent-cli). Key differences:
+
+| Feature | accent-cli | accentctl |
+|---|---|---|
+| **Single binary** | Requires Node.js runtime | Zero dependencies, single static binary |
+| **Install** | `npm install -g accent-cli` | `brew install` / `go install` / download |
+| **Local API key** | Must put key in committed config | `accentctl key set <key>` writes `accent.local.json` (gitignored) |
+| **`--verbose` flag** | No HTTP logging | `--verbose` / `-v` shows every request, status, and error body |
+| **`key` ordering** | Delegated to server (not reliable) | Client-side recursive JSON sort — works for flat, nested, and colon/period keys |
+| **Large file support** | 502 on large uploads | Automatically uploads only new keys in batches of 500 |
+| **Language discovery** | Requires explicit language in config | Auto-discovers languages from the filesystem via target template |
+| **`%document_path%` placeholder** | Supported | Supported |
+| **Parallel operations** | Sequential | Parallel exports and syncs via `errgroup` |
+| **Order-by on sync export** | Not exposed | `--order-by` applies to both `export` and the export step of `sync --write` |
 
 ## Shell completions
 

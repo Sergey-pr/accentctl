@@ -41,6 +41,10 @@ func FileAddTranslations(path string) {
 	fmt.Println(path)
 }
 
+func Info(msg string) {
+	faint.Printf("  %s\n", msg)
+}
+
 func Hook(cmd string) {
 	faint.Printf("  $ %s\n", cmd)
 }

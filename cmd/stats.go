@@ -3,10 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
 	"github.com/sergey-pr/accentctl/internal/output"
 )
@@ -24,27 +22,14 @@ func runStats(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client := api.New(cfg.APIURL, cfg.APIKey)
-	stats, err := client.Stats()
+	slugs, err := languageSlugsFromFilesystem(cfg.Files[0].Target)
 	if err != nil {
 		return err
 	}
 
-	output.Section(fmt.Sprintf("Project: %s", stats.Project.Name))
-	fmt.Printf("  Translated:  %.1f%%\n", stats.Project.TranslatedRate*100)
-	fmt.Printf("  Documents:   %d\n", stats.Project.DocumentsCount)
-	fmt.Printf("  Versions:    %d\n", stats.Project.VersionsCount)
-
-	if len(stats.LanguageStats) > 0 {
-		output.Section("Languages")
-		bold := color.New(color.Bold)
-		for _, ls := range stats.LanguageStats {
-			pct := ls.TranslatedRate * 100
-			bar := progressBar(pct, 20)
-			bold.Printf("  %-12s", ls.Language.Slug)
-			fmt.Printf(" %s %5.1f%%  (%d translated, %d missing)\n",
-				bar, pct, ls.TranslatedCount, ls.UntranslatedCount)
-		}
+	output.Section("Languages")
+	for _, slug := range slugs {
+		fmt.Printf("  %s\n", slug)
 	}
 
 	return nil

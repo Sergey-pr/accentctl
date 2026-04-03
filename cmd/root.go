@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var verbose bool
+
 var root = &cobra.Command{
 	Use:   "accentctl",
 	Short: "A CLI tool for Accent- the translation management platform",
@@ -24,8 +26,12 @@ func Execute() {
 }
 
 func init() {
+	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Log HTTP requests and responses")
+
 	root.AddCommand(exportCmd)
 	root.AddCommand(syncCmd)
+	root.AddCommand(updateCmd)
+	root.AddCommand(cleanupCmd)
 	root.AddCommand(statsCmd)
 	root.AddCommand(initCmd)
 	root.AddCommand(keyCmd)

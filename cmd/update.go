@@ -1,0 +1,169 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/bmatcuk/doublestar/v4"
+	"github.com/spf13/cobra"
+
+	"github.com/sergey-pr/accentctl/internal/api"
+	"github.com/sergey-pr/accentctl/internal/config"
+	"github.com/sergey-pr/accentctl/internal/output"
+)
+
+var updateCmd = &cobra.Command{
+	Use:   "update",
+	Short: "Add new keys to Accent and force their translations",
+	Long: `Uploads new source keys in chunks and force-pushes translations for
+those new keys to all target languages.
+
+With --force: uploads all source keys and force-pushes all translations
+for all languages.`,
+	Example: `  accentctl update
+  accentctl update --force
+  accentctl update --order-by key`,
+	RunE: runUpdate,
+}
+
+var (
+	updateOrderBy string
+	updateForce   bool
+)
+
+func init() {
+	updateCmd.Flags().StringVar(&updateOrderBy, "order-by", "key", "Order of exported keys: index, -index, key, -key, updated, -updated")
+	updateCmd.Flags().BoolVar(&updateForce, "force", false, "Upload all source keys and force all translations for all languages")
+}
+
+func runUpdate(cmd *cobra.Command, args []string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
+	output.Section("Updating files")
+
+	type fileNewKeys struct {
+		file   config.File
+		keySet map[string]bool
+	}
+	var results []fileNewKeys
+
+	for _, file := range cfg.Files {
+		sources, err := doublestar.FilepathGlob(file.Source)
+		if err != nil {
+			return fmt.Errorf("invalid source pattern %q: %w", file.Source, err)
+		}
+		if len(sources) == 0 {
+			return fmt.Errorf("no files matched source pattern %q", file.Source)
+		}
+
+		keySet := map[string]bool{}
+		for _, src := range sources {
+			documentPath := documentName(src)
+			language := file.Language
+			if language == "" {
+				language = languageFromPath(filepath.ToSlash(src), file.Target)
+			}
+
+			if updateForce {
+				// Step 1: delete ALL keys from server 200 at a time.
+				if err := deleteAllKeysChunked(client, src, documentPath, file.Format, language); err != nil {
+					return err
+				}
+				time.Sleep(2 * time.Second)
+			}
+
+			newLeaves, err := updateFileChunked(client, src, documentPath, file.Format, language, updateOrderBy, updateForce)
+			if err != nil {
+				return err
+			}
+			for _, l := range newLeaves {
+				keySet[leafKey(l.path)] = true
+			}
+		}
+		results = append(results, fileNewKeys{file, keySet})
+	}
+
+	time.Sleep(2 * time.Second)
+	output.Section("Adding translations")
+	for _, r := range results {
+		if updateForce {
+			// Force all translations for all languages.
+			if err := addTranslationsFile(client, r.file, false, "force"); err != nil {
+				return err
+			}
+		} else if len(r.keySet) > 0 {
+			// Force translations only for the newly added source keys.
+			if err := addTranslationsForNewKeys(client, r.file, r.keySet); err != nil {
+				return err
+			}
+		}
+	}
+
+	time.Sleep(2 * time.Second)
+	output.Section("Exporting updated files")
+	for _, file := range cfg.Files {
+		if err := exportFile(client, file, updateOrderBy); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// updateFileChunked fetches the current Accent state, finds new leaf keys, and
+// uploads them in batches of chunkSize using passive sync.
+// With force=true, treats all local keys as new (re-uploads everything).
+// Returns the uploaded leaf entries so callers can push their translations.
+func updateFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]leafEntry, error) {
+	var existing []byte
+	if !force {
+		var err error
+		existing, err = client.ExportBytes(documentPath, format, language)
+		if err != nil {
+			return nil, fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
+		}
+	}
+	time.Sleep(2 * time.Second)
+
+	chunks, newLeaves, err := newKeysChunksWithLeaves(src, existing, chunkSize)
+	if err != nil {
+		return nil, fmt.Errorf("%s: chunking failed: %w", src, err)
+	}
+
+	defer func() {
+		for _, p := range chunks {
+			if p != src {
+				os.Remove(p)
+			}
+		}
+	}()
+
+	if len(chunks) == 0 {
+		output.Info(fmt.Sprintf("%s: no new keys", src))
+		return nil, nil
+	}
+
+	output.Info(fmt.Sprintf("%s: %d keys → %d chunk(s)", src, len(newLeaves), len(chunks)))
+
+	opts := api.SyncOptions{SyncType: "passive", OrderBy: orderBy}
+
+	output.Section(fmt.Sprintf("Updating %s — %d chunk(s)", src, len(chunks)))
+	for i, chunk := range chunks {
+		if i > 0 {
+			time.Sleep(time.Second)
+		}
+		output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
+		_, err := client.Sync(chunk, documentPath, format, language, opts)
+		if err != nil {
+			return nil, fmt.Errorf("%s chunk %d/%d: %w", src, i+1, len(chunks), err)
+		}
+		output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, i+1, len(chunks)))
+	}
+	return newLeaves, nil
+}
