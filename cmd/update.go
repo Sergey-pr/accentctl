@@ -158,12 +158,18 @@ func updateFileChunked(client *api.Client, src, documentPath, format, language, 
 		if i > 0 {
 			time.Sleep(time.Second)
 		}
-		output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
+		if verbose {
+			output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
+		}
 		_, err := client.Sync(chunk, documentPath, format, language, opts)
 		if err != nil {
 			return nil, fmt.Errorf("%s chunk %d/%d: %w", src, i+1, len(chunks), err)
 		}
-		output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, i+1, len(chunks)))
+		if verbose {
+			output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, i+1, len(chunks)))
+		} else {
+			output.ChunkProgress(src, i+1, len(chunks))
+		}
 	}
 	return newLeaves, nil
 }

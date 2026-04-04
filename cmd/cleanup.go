@@ -90,7 +90,7 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 
 	total := len(allLeaves)
 	// +1 for the final empty-file chunk
-	nChunks := (total+chunkSize-1)/chunkSize + 1
+	nChunks := (total + chunkSize - 1) / chunkSize
 	output.Info(fmt.Sprintf("%s: deleting %d keys in %d chunk(s)", src, total, nChunks))
 
 	opts := api.SyncOptions{SyncType: "smart"}
@@ -132,12 +132,18 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 		tmp.Close()
 		tmpFiles = append(tmpFiles, tmp.Name())
 
-		output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmp.Name()))
+		if verbose {
+			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmp.Name()))
+		}
 		_, err = client.Sync(tmp.Name(), documentPath, format, language, opts)
 		if err != nil {
 			return fmt.Errorf("%s chunk %d/%d: %w", src, chunkNum, nChunks, err)
 		}
-		output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, chunkNum, nChunks))
+		if verbose {
+			output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, chunkNum, nChunks))
+		} else {
+			output.ChunkProgress(src, chunkNum, nChunks)
+		}
 
 		if end >= total {
 			break
@@ -237,12 +243,18 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 		tmpFiles = append(tmpFiles, tmp.Name())
 
 		chunkNum := i/chunkSize + 1
-		output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmp.Name()))
+		if verbose {
+			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmp.Name()))
+		}
 		_, err = client.Sync(tmp.Name(), documentPath, format, language, opts)
 		if err != nil {
 			return fmt.Errorf("%s chunk %d/%d: %w", src, chunkNum, nChunks, err)
 		}
-		output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, chunkNum, nChunks))
+		if verbose {
+			output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, chunkNum, nChunks))
+		} else {
+			output.ChunkProgress(src, chunkNum, nChunks)
+		}
 	}
 	return nil
 }

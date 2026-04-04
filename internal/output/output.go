@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fatih/color"
 )
@@ -43,6 +44,22 @@ func FileAddTranslations(path string) {
 
 func Info(msg string) {
 	faint.Printf("  %s\n", msg)
+}
+
+// ChunkProgress renders an in-place progress bar.
+// Call with current=1..total; the line is finalised (newline printed) when
+// current == total.
+func ChunkProgress(label string, current, total int) {
+	const width = 25
+	filled := 0
+	if total > 0 {
+		filled = width * current / total
+	}
+	bar := green.Sprint(strings.Repeat("█", filled)) + faint.Sprint(strings.Repeat("░", width-filled))
+	fmt.Printf("\r  [%s]  %d/%d  %s", bar, current, total, label)
+	if current >= total {
+		fmt.Println()
+	}
 }
 
 func Hook(cmd string) {

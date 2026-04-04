@@ -268,7 +268,9 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 				tmpFiles = append(tmpFiles, tmp.Name())
 
 				chunkNum := i/chunkSize + 1
-				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmp.Name()))
+				if verbose {
+					output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmp.Name()))
+				}
 				_, err = client.AddTranslations(tmp.Name(), docPath, file.Format, slug, opts)
 				if errors.Is(err, api.ErrNotFound) {
 					break
@@ -276,7 +278,11 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 				if err != nil {
 					return fmt.Errorf("%s chunk %d/%d: %w", localPath, chunkNum, nChunks, err)
 				}
-				output.FileAddTranslations(fmt.Sprintf("%s [chunk %d/%d]", localPath, chunkNum, nChunks))
+				if verbose {
+					output.FileAddTranslations(fmt.Sprintf("%s [chunk %d/%d]", localPath, chunkNum, nChunks))
+				} else {
+					output.ChunkProgress(localPath, chunkNum, nChunks)
+				}
 			}
 			for _, p := range tmpFiles {
 				os.Remove(p)
@@ -322,7 +328,9 @@ func addTranslationsChunked(client *api.Client, localPath, docPath, format, lang
 		if i > 0 {
 			time.Sleep(time.Second)
 		}
-		output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
+		if verbose {
+			output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
+		}
 		_, err := client.AddTranslations(chunk, docPath, format, language, opts)
 		if errors.Is(err, api.ErrNotFound) {
 			return nil
@@ -330,7 +338,11 @@ func addTranslationsChunked(client *api.Client, localPath, docPath, format, lang
 		if err != nil {
 			return fmt.Errorf("%s chunk %d/%d: %w", localPath, i+1, len(chunks), err)
 		}
-		output.FileAddTranslations(fmt.Sprintf("%s [chunk %d/%d]", localPath, i+1, len(chunks)))
+		if verbose {
+			output.FileAddTranslations(fmt.Sprintf("%s [chunk %d/%d]", localPath, i+1, len(chunks)))
+		} else {
+			output.ChunkProgress(localPath, i+1, len(chunks))
+		}
 	}
 	return nil
 }
