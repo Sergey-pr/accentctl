@@ -149,15 +149,8 @@ accentctl init
 | Feature | accent-cli | accentctl |
 |---|---|---|
 | **Single binary** | Requires Node.js runtime | Zero dependencies, single static binary |
-| **Install** | `npm install -g accent-cli` | `brew install` / `go install` / download |
-| **Local API key** | Must put key in committed config | `accentctl key set <key>` writes `accent.local.json` (gitignored) |
-| **`--verbose` flag** | No HTTP logging | `--verbose` / `-v` shows every request, status, and error body |
 | **`key` ordering** | Delegated to server (not reliable) | Client-side recursive JSON sort — works for flat, nested, and colon/period keys |
 | **Large file support** | 502 on large uploads | Automatically uploads only new keys in batches of 500 |
-| **Language discovery** | Requires explicit language in config | Auto-discovers languages from the filesystem via target template |
-| **`%document_path%` placeholder** | Supported | Supported |
-| **Parallel operations** | Sequential | Parallel exports and syncs via `errgroup` |
-| **Order-by on sync export** | Not exposed | `--order-by` applies to both `export` and the export step of `sync --write` |
 
 ## Shell completions
 
