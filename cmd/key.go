@@ -26,10 +26,13 @@ func init() {
 }
 
 func runKeySet(cmd *cobra.Command, args []string) error {
-	const localFile = "accent.local.json"
-	apiKey := args[0]
+	return saveLocalAPIKey(args[0])
+}
 
-	// Read existing file to preserve any other fields
+func saveLocalAPIKey(apiKey string) error {
+	const localFile = "accent.local.json"
+
+	// Read existing file to preserve any other fields.
 	data := map[string]any{}
 	if raw, err := os.ReadFile(localFile); err == nil {
 		_ = json.Unmarshal(raw, &data)

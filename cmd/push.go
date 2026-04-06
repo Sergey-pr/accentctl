@@ -4,48 +4,49 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
+	"github.com/sergey-pr/accentctl/internal/constants"
 	"github.com/sergey-pr/accentctl/internal/output"
+	"github.com/sergey-pr/accentctl/internal/utils"
 )
 
-var updateCmd = &cobra.Command{
-	Use:   "update",
+var pushCmd = &cobra.Command{
+	Use:   "push",
 	Short: "Add new keys to Accent and force their translations",
 	Long: `Uploads new source keys in chunks and force-pushes translations for
 those new keys to all target languages.
 
 With --force: uploads all source keys and force-pushes all translations
 for all languages.`,
-	Example: `  accentctl update
-  accentctl update --force
-  accentctl update --order-by key`,
-	RunE: runUpdate,
+	Example: `  accentctl push
+  accentctl push --force
+  accentctl push --order-by key`,
+	RunE: runPush,
 }
 
 var (
-	updateOrderBy string
-	updateForce   bool
+	pushOrderBy string
+	pushForce   bool
 )
 
 func init() {
-	updateCmd.Flags().StringVar(&updateOrderBy, "order-by", "key", "Order of exported keys: index, -index, key, -key, updated, -updated")
-	updateCmd.Flags().BoolVar(&updateForce, "force", false, "Upload all source keys and force all translations for all languages")
+	pushCmd.Flags().StringVar(&pushOrderBy, "order-by", "key", "Order of exported keys: index, -index, key, -key, updated, -updated")
+	pushCmd.Flags().BoolVar(&pushForce, "force", false, "Upload all source keys and force all translations for all languages")
 }
 
-func runUpdate(cmd *cobra.Command, args []string) error {
+func runPush(cmd *cobra.Command, args []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
 	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
-	output.Section("Updating files")
+	output.Section("Pushing files")
 
 	type fileNewKeys struct {
 		file   config.File
@@ -64,35 +65,33 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 		keySet := map[string]bool{}
 		for _, src := range sources {
-			documentPath := documentName(src)
+			documentPath := utils.DocumentName(src)
 			language := file.Language
 			if language == "" {
-				language = languageFromPath(filepath.ToSlash(src), file.Target)
+				language = utils.LanguageFromPath(filepath.ToSlash(src), file.Target)
 			}
 
-			if updateForce {
+			if pushForce {
 				// Step 1: delete ALL keys from server 200 at a time.
 				if err := deleteAllKeysChunked(client, src, documentPath, file.Format, language); err != nil {
 					return err
 				}
-				time.Sleep(2 * time.Second)
 			}
 
-			newLeaves, err := updateFileChunked(client, src, documentPath, file.Format, language, updateOrderBy, updateForce)
+			newLeaves, err := pushFileChunked(client, src, documentPath, file.Format, language, pushOrderBy, pushForce)
 			if err != nil {
 				return err
 			}
 			for _, l := range newLeaves {
-				keySet[leafKey(l.path)] = true
+				keySet[utils.LeafKey(l.Path)] = true
 			}
 		}
 		results = append(results, fileNewKeys{file, keySet})
 	}
 
-	time.Sleep(2 * time.Second)
 	output.Section("Adding translations")
 	for _, r := range results {
-		if updateForce {
+		if pushForce {
 			// Force all translations for all languages.
 			if err := addTranslationsFile(client, r.file, false, "force"); err != nil {
 				return err
@@ -105,10 +104,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	time.Sleep(2 * time.Second)
 	output.Section("Exporting updated files")
 	for _, file := range cfg.Files {
-		if err := exportFile(client, file, updateOrderBy); err != nil {
+		if err := pullFile(client, file, pushOrderBy); err != nil {
 			return err
 		}
 	}
@@ -116,11 +114,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// updateFileChunked fetches the current Accent state, finds new leaf keys, and
-// uploads them in batches of chunkSize using passive sync.
+// pushFileChunked fetches the current Accent state, finds new leaf keys, and
+// uploads them in batches of ChunkSize using passive sync.
 // With force=true, treats all local keys as new (re-uploads everything).
 // Returns the uploaded leaf entries so callers can push their translations.
-func updateFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]leafEntry, error) {
+func pushFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]utils.LeafEntry, error) {
 	var existing []byte
 	if !force {
 		var err error
@@ -129,9 +127,8 @@ func updateFileChunked(client *api.Client, src, documentPath, format, language, 
 			return nil, fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
 		}
 	}
-	time.Sleep(2 * time.Second)
 
-	chunks, newLeaves, err := newKeysChunksWithLeaves(src, existing, chunkSize)
+	chunks, newLeaves, err := utils.NewKeysChunksWithLeaves(src, existing, constants.ChunkSize)
 	if err != nil {
 		return nil, fmt.Errorf("%s: chunking failed: %w", src, err)
 	}
@@ -153,10 +150,9 @@ func updateFileChunked(client *api.Client, src, documentPath, format, language, 
 
 	opts := api.SyncOptions{SyncType: "passive", OrderBy: orderBy}
 
-	output.Section(fmt.Sprintf("Updating %s — %d chunk(s)", src, len(chunks)))
+	output.Section(fmt.Sprintf("Pushing %s - %d chunk(s)", src, len(chunks)))
 	for i, chunk := range chunks {
 		if i > 0 {
-			time.Sleep(time.Second)
 		}
 		if verbose {
 			output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))

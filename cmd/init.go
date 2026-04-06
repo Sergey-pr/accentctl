@@ -35,7 +35,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	cfg := map[string]any{
 		"apiUrl": apiURL,
-		"apiKey": apiKey,
 		"files": []map[string]any{
 			{
 				"language": language,
@@ -56,8 +55,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\nCreated %s\n", configFile)
-	if apiKey == "" {
-		fmt.Println("Remember to set the ACCENT_API_KEY environment variable.")
+
+	if apiKey != "" {
+		if err := saveLocalAPIKey(apiKey); err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Remember to set your API key via `accentctl key set <apikey>` or the ACCENT_API_KEY environment variable.")
 	}
 	return nil
 }

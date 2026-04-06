@@ -1,4 +1,4 @@
-package cmd
+package utils
 
 import (
 	"bytes"
@@ -7,9 +7,8 @@ import (
 	"sort"
 )
 
-// sortJSONFile reads a JSON file, sorts all object keys recursively, and writes it back.
-// Works for both flat ({"a:b": "v"}) and nested ({"a": {"b": "v"}}) JSON.
-func sortJSONFile(filePath string, desc bool) error {
+// SortJSONFile reads a JSON file, sorts all object keys recursively, and writes it back.
+func SortJSONFile(filePath string, desc bool) error {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -35,7 +34,6 @@ func sortJSONFile(filePath string, desc bool) error {
 }
 
 func sortRawJSON(raw json.RawMessage, desc bool) (json.RawMessage, error) {
-	// Try to parse as object
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &obj); err == nil {
 		keys := make([]string, 0, len(obj))
@@ -66,7 +64,6 @@ func sortRawJSON(raw json.RawMessage, desc bool) (json.RawMessage, error) {
 		return buf.Bytes(), nil
 	}
 
-	// Try array — recurse into elements
 	var arr []json.RawMessage
 	if err := json.Unmarshal(raw, &arr); err == nil {
 		elems := make([]json.RawMessage, len(arr))
@@ -81,6 +78,5 @@ func sortRawJSON(raw json.RawMessage, desc bool) (json.RawMessage, error) {
 		return out, err
 	}
 
-	// Primitive — return as-is
 	return raw, nil
 }

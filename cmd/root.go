@@ -28,11 +28,10 @@ func Execute() {
 func init() {
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Log HTTP requests and responses")
 
-	root.AddCommand(exportCmd)
-	root.AddCommand(syncCmd)
-	root.AddCommand(updateCmd)
+	root.AddCommand(pullCmd)
+	root.AddCommand(pushCmd)
 	root.AddCommand(cleanupCmd)
-	root.AddCommand(statsCmd)
+	root.AddCommand(statusCmd)
 	root.AddCommand(initCmd)
 	root.AddCommand(keyCmd)
 }
