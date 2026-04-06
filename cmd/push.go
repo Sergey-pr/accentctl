@@ -72,7 +72,6 @@ func runPush(cmd *cobra.Command, args []string) error {
 			}
 
 			if pushForce {
-				// Step 1: delete ALL keys from server 200 at a time.
 				if err := deleteAllKeysChunked(client, src, documentPath, file.Format, language); err != nil {
 					return err
 				}

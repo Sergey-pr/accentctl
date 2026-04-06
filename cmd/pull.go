@@ -70,13 +70,8 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 
 	opts := api.ExportOptions{OrderBy: orderBy}
 
-	first := true
 	for _, slug := range slugs {
 		for _, src := range sources {
-			if !first {
-			}
-			first = false
-
 			docPath := utils.DocumentName(src)
 			targetPath := utils.ApplyTargetTemplate(file.Target, slug, docPath)
 			err := client.Export(targetPath, docPath, file.Format, slug, opts)

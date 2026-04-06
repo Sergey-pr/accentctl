@@ -103,8 +103,6 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 
 	chunkNum := 0
 	for start := 0; start <= total; start += constants.ChunkSize {
-		if start > 0 {
-		}
 		chunkNum++
 
 		// Upload allLeaves[start+constants.ChunkSize:].
@@ -210,9 +208,6 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 	}()
 
 	for i := 0; i < total; i += constants.ChunkSize {
-		if i > 0 {
-		}
-
 		// This chunk removes orphaned[i : i+constants.ChunkSize].
 		// File = local keys + orphaned keys not yet removed (i+constants.ChunkSize onward).
 		end := i + constants.ChunkSize

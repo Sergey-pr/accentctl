@@ -123,8 +123,6 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 			opts := api.AddTranslationsOptions{MergeType: "force"}
 			var tmpFiles []string
 			for i := 0; i < len(targetLeaves); i += constants.ChunkSize {
-				if i > 0 {
-				}
 				end := i + constants.ChunkSize
 				if end > len(targetLeaves) {
 					end = len(targetLeaves)
@@ -203,8 +201,6 @@ func addTranslationsChunked(client *api.Client, localPath, docPath, format, lang
 
 	opts := api.AddTranslationsOptions{MergeType: mergeType}
 	for i, chunk := range chunks {
-		if i > 0 {
-		}
 		if verbose {
 			output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
 		}
