@@ -59,7 +59,7 @@ func (t *verboseTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		fmt.Printf("[verbose] error: %v\n", err)
 		return nil, err
 	}
-	fmt.Printf("[verbose] → %s\n", resp.Status)
+	fmt.Printf("[verbose] -> %s\n", resp.Status)
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()

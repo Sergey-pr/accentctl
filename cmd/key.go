@@ -35,7 +35,9 @@ func saveLocalAPIKey(apiKey string) error {
 	// Read existing file to preserve any other fields.
 	data := map[string]any{}
 	if raw, err := os.ReadFile(localFile); err == nil {
-		_ = json.Unmarshal(raw, &data)
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return fmt.Errorf("%s is not valid JSON: %w", localFile, err)
+		}
 	}
 
 	data["apiKey"] = apiKey

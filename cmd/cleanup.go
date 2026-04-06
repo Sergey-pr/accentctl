@@ -106,7 +106,7 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 		chunkNum++
 
 		// Upload allLeaves[start+constants.ChunkSize:].
-		// When start >= total the remaining slice is empty → uploads "{}".
+		// When start >= total the remaining slice is empty and uploads "{}".
 		end := start + constants.ChunkSize
 		if end > total {
 			end = total

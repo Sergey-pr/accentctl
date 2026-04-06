@@ -145,7 +145,7 @@ func pushFileChunked(client *api.Client, src, documentPath, format, language, or
 		return nil, nil
 	}
 
-	output.Info(fmt.Sprintf("%s: %d keys → %d chunk(s)", src, len(newLeaves), len(chunks)))
+	output.Info(fmt.Sprintf("%s: %d keys -> %d chunk(s)", src, len(newLeaves), len(chunks)))
 
 	opts := api.SyncOptions{SyncType: "passive", OrderBy: orderBy}
 

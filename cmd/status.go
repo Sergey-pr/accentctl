@@ -100,7 +100,11 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 		return 0, 0, fmt.Errorf("%s: %w", localPath, err)
 	}
 
-	localObj, _ := utils.ParseJSONObject(localData)
+	localObj, err := utils.ParseJSONObject(localData)
+	if err != nil {
+		output.Info(fmt.Sprintf("%s: skipping malformed JSON: %v", localPath, err))
+		return 0, 0, nil
+	}
 	var localSet map[string]bool
 	var localLeaves []utils.LeafEntry
 	if localObj != nil {
@@ -113,7 +117,11 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 
 	accentSet := map[string]bool{}
 	if len(existingData) > 0 {
-		accObj, _ := utils.ParseJSONObject(existingData)
+		accObj, err := utils.ParseJSONObject(existingData)
+		if err != nil {
+			output.Info(fmt.Sprintf("%s: skipping malformed server response: %v", localPath, err))
+			return 0, 0, nil
+		}
 		if accObj != nil {
 			for _, l := range utils.CollectLeaves(accObj, nil) {
 				accentSet[utils.LeafKey(l.Path)] = true

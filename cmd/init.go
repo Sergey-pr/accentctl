@@ -26,12 +26,30 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	r := bufio.NewReader(os.Stdin)
 
-	apiURL := prompt(r, "Accent API URL", "https://your.accent.instance")
-	apiKey := prompt(r, "API key (or leave blank to use ACCENT_API_KEY env var)", "")
-	language := prompt(r, "Source language slug", "en")
-	format := prompt(r, "File format", "json")
-	source := prompt(r, "Source file", "localization/en/*.json")
-	target := prompt(r, "Target path template", "localization/%slug%/%original_file_name%")
+	apiURL, err := prompt(r, "Accent API URL", "https://your.accent.instance")
+	if err != nil {
+		return err
+	}
+	apiKey, err := prompt(r, "API key (or leave blank to use ACCENT_API_KEY env var)", "")
+	if err != nil {
+		return err
+	}
+	language, err := prompt(r, "Source language slug", "en")
+	if err != nil {
+		return err
+	}
+	format, err := prompt(r, "File format", "json")
+	if err != nil {
+		return err
+	}
+	source, err := prompt(r, "Source file", "localization/en/*.json")
+	if err != nil {
+		return err
+	}
+	target, err := prompt(r, "Target path template", "localization/%slug%/%original_file_name%")
+	if err != nil {
+		return err
+	}
 
 	cfg := map[string]any{
 		"apiUrl": apiURL,
@@ -66,16 +84,19 @@ func runInit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func prompt(r *bufio.Reader, label, defaultVal string) string {
+func prompt(r *bufio.Reader, label, defaultVal string) (string, error) {
 	if defaultVal != "" {
 		fmt.Printf("%s [%s]: ", label, defaultVal)
 	} else {
 		fmt.Printf("%s: ", label)
 	}
-	line, _ := r.ReadString('\n')
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("reading input for %q: %w", label, err)
+	}
 	line = strings.TrimSpace(line)
 	if line == "" {
-		return defaultVal
+		return defaultVal, nil
 	}
-	return line
+	return line, nil
 }
