@@ -21,7 +21,7 @@ var statusCmd = &cobra.Command{
 	RunE:    runStatus,
 }
 
-func runStatus(cmd *cobra.Command, args []string) error {
+func runStatus(_ *cobra.Command, _ []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err

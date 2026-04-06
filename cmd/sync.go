@@ -39,7 +39,7 @@ func init() {
 	syncCmd.Flags().BoolVar(&syncForce, "force", false, "Upload all source keys and force all translations for all languages")
 }
 
-func runSync(cmd *cobra.Command, args []string) error {
+func runSync(_ *cobra.Command, _ []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err

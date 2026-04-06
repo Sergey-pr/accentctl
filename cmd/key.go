@@ -25,7 +25,7 @@ func init() {
 	keyCmd.AddCommand(keySetCmd)
 }
 
-func runKeySet(cmd *cobra.Command, args []string) error {
+func runKeySet(_ *cobra.Command, args []string) error {
 	return saveLocalAPIKey(args[0])
 }
 

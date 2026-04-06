@@ -17,7 +17,7 @@ var initCmd = &cobra.Command{
 	RunE:    runInit,
 }
 
-func runInit(cmd *cobra.Command, args []string) error {
+func runInit(_ *cobra.Command, _ []string) error {
 	const configFile = "accent.json"
 
 	if _, err := os.Stat(configFile); err == nil {

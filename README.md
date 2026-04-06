@@ -72,11 +72,21 @@ Shell commands to run around `accentctl sync` or `accentctl pull`. Defined per f
 | `afterPull`   | `pull`   | After all files for the entry are written     |
 
 ```json
-"hooks": {
-  "beforeSync": ["echo starting sync"],
-  "afterSync":  ["echo finished sync"],
-  "beforePull": ["echo starting pull"],
-  "afterPull":  ["echo finished pull"]
+{
+  "hooks": {
+    "beforeSync": [
+      "echo starting sync"
+    ],
+    "afterSync": [
+      "echo finished sync"
+    ],
+    "beforePull": [
+      "echo starting pull"
+    ],
+    "afterPull": [
+      "echo finished pull"
+    ]
+  }
 }
 ```
 

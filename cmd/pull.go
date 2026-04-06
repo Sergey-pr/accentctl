@@ -28,7 +28,7 @@ func init() {
 	pullCmd.Flags().StringVar(&pullOrderBy, "order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
 }
 
-func runPull(cmd *cobra.Command, args []string) error {
+func runPull(_ *cobra.Command, _ []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err

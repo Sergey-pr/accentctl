@@ -24,7 +24,7 @@ Orphaned keys (present in Accent but not in the local file) are deleted.`,
 	RunE:    runCleanup,
 }
 
-func runCleanup(cmd *cobra.Command, args []string) error {
+func runCleanup(_ *cobra.Command, _ []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
