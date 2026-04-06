@@ -54,7 +54,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	output.Section("Exporting updated files")
+	output.Section("Pulling updated files")
 	for _, file := range cfg.Files {
 		if err := pullFile(client, file, "index"); err != nil {
 			return err

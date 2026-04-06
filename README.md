@@ -30,7 +30,7 @@ Create an `accent.json` file in your project root (or run `accentctl init`):
       "source": "localization/en/*.json",
       "target": "localization/%slug%/%original_file_name%",
       "hooks": {
-        "afterExport": ["prettier --write localization/"]
+        "afterPull": ["prettier --write localization/"]
       }
     }
   ]
@@ -62,26 +62,51 @@ You can commit `accent.json` without any secrets. The local file overrides `acce
 
 ### Hooks
 
-Run shell commands before or after each operation:
+Shell commands to run around `accentctl sync` or `accentctl pull`. Defined per file entry in the config.
 
-- `beforeExport` / `afterExport`
+| Hook          | Command  | When it runs                                  |
+|---------------|----------|-----------------------------------------------|
+| `beforeSync`  | `sync`   | Before uploading source keys                  |
+| `afterSync`   | `sync`   | After all files are pulled at the end of sync |
+| `beforePull`  | `pull`   | Before downloading files from Accent          |
+| `afterPull`   | `pull`   | After all files for the entry are written     |
+
+```json
+"hooks": {
+  "beforeSync": ["echo starting sync"],
+  "afterSync":  ["echo finished sync"],
+  "beforePull": ["echo starting pull"],
+  "afterPull":  ["echo finished pull"]
+}
+```
 
 ## Commands
 
-### `accentctl push`
+### `accentctl sync`
 
 Upload new source keys to Accent in chunks, then force-push translations for those new keys to all target languages, then pull updated files.
 
 ```sh
-accentctl push
-accentctl push --force
-accentctl push --order-by key
+accentctl sync
+accentctl sync --force
+accentctl sync --order-by key
 ```
 
 | Flag         | Default | Description                                                                |
 |--------------|---------|----------------------------------------------------------------------------|
 | `--force`    | false   | Delete all server keys first, re-upload everything, force all translations |
-| `--order-by` | `key`   | Key order in exported files (see below)                                    |
+| `--order-by` | `key`   | Key order in exported files                                                |
+
+**`--order-by` values**
+
+| Value      | Behaviour               |
+|------------|-------------------------|
+| `index`    | File insertion order    |
+| `-index`   | Reverse insertion order |
+| `key`      | Alphabetical ascending  |
+| `-key`     | Alphabetical descending |
+| `updated`  | Last updated ascending  |
+| `-updated` | Last updated descending |
 
 ### `accentctl pull`
 
@@ -92,9 +117,20 @@ accentctl pull
 accentctl pull --order-by -key
 ```
 
-| Flag         | Default | Description                             |
-|--------------|---------|-----------------------------------------|
-| `--order-by` | `key`   | Key order in exported files (see below) |
+| Flag         | Default | Description                  |
+|--------------|---------|------------------------------|
+| `--order-by` | `key`   | Key order in exported files  |
+
+**`--order-by` values**
+
+| Value      | Behaviour               |
+|------------|-------------------------|
+| `index`    | File insertion order    |
+| `-index`   | Reverse insertion order |
+| `key`      | Alphabetical ascending  |
+| `-key`     | Alphabetical descending |
+| `updated`  | Last updated ascending  |
+| `-updated` | Last updated descending |
 
 ### `accentctl cleanup`
 
@@ -127,19 +163,6 @@ Save an API key to `accent.local.json` (gitignored).
 ```sh
 accentctl key set your-api-key
 ```
-
----
-
-**`--order-by` values**
-
-| Value      | Behaviour               |
-|------------|-------------------------|
-| `index`    | File insertion order    |
-| `-index`   | Reverse insertion order |
-| `key`      | Alphabetical ascending  |
-| `-key`     | Alphabetical descending |
-| `updated`  | Last updated ascending  |
-| `-updated` | Last updated descending |
 
 ## Improvements over accent-cli
 

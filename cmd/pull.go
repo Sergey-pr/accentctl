@@ -25,7 +25,7 @@ var pullCmd = &cobra.Command{
 var pullOrderBy string
 
 func init() {
-	pullCmd.Flags().StringVar(&pullOrderBy, "order-by", "key", "Order of exported keys: index, -index, key, -key, updated, -updated")
+	pullCmd.Flags().StringVar(&pullOrderBy, "order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
 }
 
 func runPull(cmd *cobra.Command, args []string) error {
@@ -38,16 +38,16 @@ func runPull(cmd *cobra.Command, args []string) error {
 	output.Section("Pulling files")
 
 	for _, file := range cfg.Files {
-		if err := runHooks(file.Hooks.BeforeExport); err != nil {
-			return fmt.Errorf("beforeExport hook failed: %w", err)
+		if err := runHooks(file.Hooks.BeforePull); err != nil {
+			return fmt.Errorf("beforePull hook failed: %w", err)
 		}
 
 		if err := pullFile(client, file, pullOrderBy); err != nil {
 			return err
 		}
 
-		if err := runHooks(file.Hooks.AfterExport); err != nil {
-			return fmt.Errorf("afterExport hook failed: %w", err)
+		if err := runHooks(file.Hooks.AfterPull); err != nil {
+			return fmt.Errorf("afterPull hook failed: %w", err)
 		}
 	}
 
@@ -86,7 +86,7 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 					return err
 				}
 			}
-			output.FileExport(targetPath)
+			output.FilePull(targetPath)
 		}
 	}
 

@@ -7,5 +7,5 @@ const (
 	ChunkSize = 250
 
 	// RequestDelay is the pause between consecutive requests.
-	RequestDelay = time.Second / 2
+	RequestDelay = time.Second
 )

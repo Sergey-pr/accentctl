@@ -15,38 +15,45 @@ import (
 	"github.com/sergey-pr/accentctl/internal/utils"
 )
 
-var pushCmd = &cobra.Command{
-	Use:   "push",
+var syncCmd = &cobra.Command{
+	Use:   "sync",
 	Short: "Add new keys to Accent and force their translations",
 	Long: `Uploads new source keys in chunks and force-pushes translations for
 those new keys to all target languages.
 
 With --force: uploads all source keys and force-pushes all translations
 for all languages.`,
-	Example: `  accentctl push
-  accentctl push --force
-  accentctl push --order-by key`,
-	RunE: runPush,
+	Example: `  accentctl sync
+  accentctl sync --force
+  accentctl sync --order-by key`,
+	RunE: runSync,
 }
 
 var (
-	pushOrderBy string
-	pushForce   bool
+	syncOrderBy string
+	syncForce   bool
 )
 
 func init() {
-	pushCmd.Flags().StringVar(&pushOrderBy, "order-by", "key", "Order of exported keys: index, -index, key, -key, updated, -updated")
-	pushCmd.Flags().BoolVar(&pushForce, "force", false, "Upload all source keys and force all translations for all languages")
+	syncCmd.Flags().StringVar(&syncOrderBy, "order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
+	syncCmd.Flags().BoolVar(&syncForce, "force", false, "Upload all source keys and force all translations for all languages")
 }
 
-func runPush(cmd *cobra.Command, args []string) error {
+func runSync(cmd *cobra.Command, args []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
 	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
-	output.Section("Pushing files")
+
+	for _, file := range cfg.Files {
+		if err := runHooks(file.Hooks.BeforeSync); err != nil {
+			return fmt.Errorf("beforeSync hook failed: %w", err)
+		}
+	}
+
+	output.Section("Syncing files")
 
 	type fileNewKeys struct {
 		file   config.File
@@ -71,13 +78,13 @@ func runPush(cmd *cobra.Command, args []string) error {
 				language = utils.LanguageFromPath(filepath.ToSlash(src), file.Target)
 			}
 
-			if pushForce {
+			if syncForce {
 				if err := deleteAllKeysChunked(client, src, documentPath, file.Format, language); err != nil {
 					return err
 				}
 			}
 
-			newLeaves, err := pushFileChunked(client, src, documentPath, file.Format, language, pushOrderBy, pushForce)
+			newLeaves, err := syncFileChunked(client, src, documentPath, file.Format, language, syncOrderBy, syncForce)
 			if err != nil {
 				return err
 			}
@@ -90,7 +97,7 @@ func runPush(cmd *cobra.Command, args []string) error {
 
 	output.Section("Adding translations")
 	for _, r := range results {
-		if pushForce {
+		if syncForce {
 			// Force all translations for all languages.
 			if err := addTranslationsFile(client, r.file, false, "force"); err != nil {
 				return err
@@ -103,21 +110,27 @@ func runPush(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	output.Section("Exporting updated files")
+	output.Section("Pulling updated files")
 	for _, file := range cfg.Files {
-		if err := pullFile(client, file, pushOrderBy); err != nil {
+		if err := pullFile(client, file, syncOrderBy); err != nil {
 			return err
+		}
+	}
+
+	for _, file := range cfg.Files {
+		if err := runHooks(file.Hooks.AfterSync); err != nil {
+			return fmt.Errorf("afterSync hook failed: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// pushFileChunked fetches the current Accent state, finds new leaf keys, and
+// syncFileChunked fetches the current Accent state, finds new leaf keys, and
 // uploads them in batches of ChunkSize using passive sync.
 // With force=true, treats all local keys as new (re-uploads everything).
 // Returns the uploaded leaf entries so callers can push their translations.
-func pushFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]utils.LeafEntry, error) {
+func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]utils.LeafEntry, error) {
 	var existing []byte
 	if !force {
 		var err error
@@ -149,10 +162,8 @@ func pushFileChunked(client *api.Client, src, documentPath, format, language, or
 
 	opts := api.SyncOptions{SyncType: "passive", OrderBy: orderBy}
 
-	output.Section(fmt.Sprintf("Pushing %s - %d chunk(s)", src, len(chunks)))
+	output.Section(fmt.Sprintf("Syncing %s - %d chunk(s)", src, len(chunks)))
 	for i, chunk := range chunks {
-		if i > 0 {
-		}
 		if verbose {
 			output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
 		}

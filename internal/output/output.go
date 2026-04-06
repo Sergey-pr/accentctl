@@ -32,8 +32,8 @@ func FileDryRun(path string, newCount, updatedCount, removedCount int) {
 	faint.Printf("  (+%d /%d -%d)\n", newCount, updatedCount, removedCount)
 }
 
-func FileExport(path string) {
-	cyan.Print("  export  ")
+func FilePull(path string) {
+	cyan.Print("  pull  ")
 	fmt.Println(path)
 }
 

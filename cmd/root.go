@@ -11,7 +11,7 @@ var verbose bool
 var root = &cobra.Command{
 	Use:   "accentctl",
 	Short: "A CLI tool for Accent- the translation management platform",
-	Long: `accentctl lets you sync, export, and manage translations
+	Long: `accentctl lets you sync, pull, and manage translations
 via the Accent API (https://www.accent.reviews/).
 
 Configuration is read from accent.json (or accent.yaml / accent.toml)
@@ -29,7 +29,7 @@ func init() {
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Log HTTP requests and responses")
 
 	root.AddCommand(pullCmd)
-	root.AddCommand(pushCmd)
+	root.AddCommand(syncCmd)
 	root.AddCommand(cleanupCmd)
 	root.AddCommand(statusCmd)
 	root.AddCommand(initCmd)

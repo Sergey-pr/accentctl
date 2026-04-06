@@ -8,12 +8,10 @@ import (
 )
 
 type Hook struct {
-	BeforeSync            []string `mapstructure:"beforeSync"`
-	AfterSync             []string `mapstructure:"afterSync"`
-	BeforeExport          []string `mapstructure:"beforeExport"`
-	AfterExport           []string `mapstructure:"afterExport"`
-	BeforeAddTranslations []string `mapstructure:"beforeAddTranslations"`
-	AfterAddTranslations  []string `mapstructure:"afterAddTranslations"`
+	BeforeSync []string `mapstructure:"beforeSync"`
+	AfterSync  []string `mapstructure:"afterSync"`
+	BeforePull []string `mapstructure:"beforePull"`
+	AfterPull  []string `mapstructure:"afterPull"`
 }
 
 type File struct {
