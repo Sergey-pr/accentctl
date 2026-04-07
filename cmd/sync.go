@@ -99,7 +99,7 @@ func runSync(_ *cobra.Command, _ []string) error {
 	for _, r := range results {
 		if syncForce {
 			// Force all translations for all languages.
-			if err := addTranslationsFile(client, r.file, false, "force"); err != nil {
+			if err := addTranslationsFile(client, r.file, "force"); err != nil {
 				return err
 			}
 		} else if len(r.keySet) > 0 {

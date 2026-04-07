@@ -15,7 +15,7 @@ import (
 	"github.com/sergey-pr/accentctl/internal/utils"
 )
 
-func addTranslationsFile(client *api.Client, file config.File, dryRun bool, mergeType string) error {
+func addTranslationsFile(client *api.Client, file config.File, mergeType string) error {
 	slugs, err := utils.LanguageSlugsFromFilesystem(file.Target)
 	if err != nil {
 		return err
@@ -40,21 +40,6 @@ func addTranslationsFile(client *api.Client, file config.File, dryRun bool, merg
 			docPath := utils.DocumentName(src)
 			localPath := utils.ApplyTargetTemplate(file.Target, slug, docPath)
 			if _, err := os.Stat(localPath); err != nil {
-				continue
-			}
-
-			if dryRun {
-				opts := api.AddTranslationsOptions{DryRun: true, MergeType: mergeType}
-				peek, err := client.AddTranslations(localPath, docPath, file.Format, slug, opts)
-				if errors.Is(err, api.ErrNotFound) {
-					continue
-				}
-				if err != nil {
-					return fmt.Errorf("%s: %w", localPath, err)
-				}
-				if peek != nil {
-					output.FileDryRun(localPath, peek.NewCount, peek.UpdatedCount, peek.RemovedCount)
-				}
 				continue
 			}
 
