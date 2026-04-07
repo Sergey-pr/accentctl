@@ -144,7 +144,7 @@ func syncFileChunked(client *api.Client, src, documentPath, format, language, or
 	defer func() {
 		for _, p := range chunks {
 			if p != src {
-				os.Remove(p)
+				_ = os.Remove(p)
 			}
 		}
 	}()

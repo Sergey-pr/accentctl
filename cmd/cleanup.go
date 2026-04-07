@@ -93,7 +93,7 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 	var tmpFiles []string
 	defer func() {
 		for _, p := range tmpFiles {
-			os.Remove(p)
+			_ = os.Remove(p)
 		}
 	}()
 
@@ -119,10 +119,10 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 			return err
 		}
 		if _, err := tmp.Write(data); err != nil {
-			tmp.Close()
+			_ = tmp.Close()
 			return err
 		}
-		tmp.Close()
+		_ = tmp.Close()
 
 		tmpName := tmp.Name()
 
@@ -199,7 +199,7 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 	var tmpFiles []string
 	defer func() {
 		for _, p := range tmpFiles {
-			os.Remove(p)
+			_ = os.Remove(p)
 		}
 	}()
 
@@ -223,10 +223,10 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 			return err
 		}
 		if _, err := tmp.Write(data); err != nil {
-			tmp.Close()
+			_ = tmp.Close()
 			return err
 		}
-		tmp.Close()
+		_ = tmp.Close()
 
 		tmpName := tmp.Name()
 

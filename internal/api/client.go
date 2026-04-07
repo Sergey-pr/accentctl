@@ -62,7 +62,7 @@ func (t *verboseTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	fmt.Printf("[verbose] -> %s\n", resp.Status)
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		fmt.Printf("[verbose] body: %s\n", body)
 		resp.Body = io.NopCloser(bytes.NewReader(body))
 	}
@@ -168,7 +168,9 @@ func (c *Client) ExportBytes(documentPath, format, language string) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil
@@ -199,7 +201,9 @@ func (c *Client) Export(destPath, documentPath, format, language string, opts Ex
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return ErrNotFound
@@ -216,7 +220,10 @@ func (c *Client) Export(destPath, documentPath, format, language string, opts Ex
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+
+	defer func() {
+		_ = f.Close()
+	}()
 
 	_, err = io.Copy(f, resp.Body)
 	return err
@@ -238,7 +245,9 @@ func (c *Client) postOperation(endpoint string, body *bytes.Buffer, contentType 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrNotFound
@@ -266,7 +275,7 @@ func buildMultipart(fn func(*multipart.Writer) error) (*bytes.Buffer, string, er
 	if err := fn(w); err != nil {
 		return nil, "", err
 	}
-	w.Close()
+	_ = w.Close()
 	return &buf, w.FormDataContentType(), nil
 }
 
@@ -279,7 +288,11 @@ func writeFile(w *multipart.Writer, field, filePath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+
+	defer func() {
+		_ = f.Close()
+	}()
+
 	_, err = io.Copy(fw, f)
 	return err
 }

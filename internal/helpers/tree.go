@@ -140,10 +140,10 @@ func NewKeysChunksWithLeaves(localPath string, existingData []byte, chunkSize in
 			return nil, nil, err
 		}
 		if _, err := tmp.Write(data); err != nil {
-			tmp.Close()
+			_ = tmp.Close()
 			return nil, nil, err
 		}
-		tmp.Close()
+		_ = tmp.Close()
 		paths = append(paths, tmp.Name())
 	}
 	return paths, newLeaves, nil

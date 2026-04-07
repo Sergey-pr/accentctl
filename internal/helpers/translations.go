@@ -119,10 +119,10 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 					return err
 				}
 				if _, err := tmp.Write(chunkData); err != nil {
-					tmp.Close()
+					_ = tmp.Close()
 					return err
 				}
-				tmp.Close()
+				_ = tmp.Close()
 				tmpFiles = append(tmpFiles, tmp.Name())
 
 				chunkNum := i/constants.ChunkSize + 1
@@ -143,7 +143,7 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 				}
 			}
 			for _, p := range tmpFiles {
-				os.Remove(p)
+				_ = os.Remove(p)
 			}
 		}
 	}
@@ -169,7 +169,7 @@ func addTranslationsChunked(client *api.Client, localPath, docPath, format, lang
 	defer func() {
 		for _, p := range chunks {
 			if p != localPath {
-				os.Remove(p)
+				_ = os.Remove(p)
 			}
 		}
 	}()
