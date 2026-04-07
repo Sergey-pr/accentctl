@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/viper"
 )
 
@@ -20,6 +21,18 @@ type File struct {
 	Source   string `mapstructure:"source"`
 	Target   string `mapstructure:"target"`
 	Hooks    Hook   `mapstructure:"hooks"`
+}
+
+// Sources resolves the Source glob pattern and returns matching file paths.
+func (f File) Sources() ([]string, error) {
+	sources, err := doublestar.FilepathGlob(f.Source)
+	if err != nil {
+		return nil, fmt.Errorf("invalid source pattern %q: %w", f.Source, err)
+	}
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("no files matched source pattern %q", f.Source)
+	}
+	return sources, nil
 }
 
 type Config struct {

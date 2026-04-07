@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
@@ -31,9 +30,9 @@ func runStatus(_ *cobra.Command, _ []string) error {
 	output.Section("Status")
 
 	for _, file := range cfg.Files {
-		sources, err := doublestar.FilepathGlob(file.Source)
+		sources, err := file.Sources()
 		if err != nil {
-			return fmt.Errorf("invalid source pattern %q: %w", file.Source, err)
+			return err
 		}
 
 		slugs, err := utils.LanguageSlugsFromFilesystem(file.Target)

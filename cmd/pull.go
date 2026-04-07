@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
@@ -60,12 +59,9 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 		return err
 	}
 
-	sources, err := doublestar.FilepathGlob(file.Source)
+	sources, err := file.Sources()
 	if err != nil {
-		return fmt.Errorf("invalid source pattern %q: %w", file.Source, err)
-	}
-	if len(sources) == 0 {
-		return fmt.Errorf("no files matched source pattern %q", file.Source)
+		return err
 	}
 
 	opts := api.ExportOptions{OrderBy: orderBy}

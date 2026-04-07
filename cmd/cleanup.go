@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
@@ -34,12 +33,9 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 	output.Section("Cleaning up")
 
 	for _, file := range cfg.Files {
-		sources, err := doublestar.FilepathGlob(file.Source)
+		sources, err := file.Sources()
 		if err != nil {
-			return fmt.Errorf("invalid source pattern %q: %w", file.Source, err)
-		}
-		if len(sources) == 0 {
-			return fmt.Errorf("no files matched source pattern %q", file.Source)
+			return err
 		}
 
 		for _, src := range sources {

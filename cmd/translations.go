@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bmatcuk/doublestar/v4"
-
 	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
 	"github.com/sergey-pr/accentctl/internal/constants"
@@ -21,9 +19,9 @@ func addTranslationsFile(client *api.Client, file config.File, mergeType string)
 		return err
 	}
 
-	sources, err := doublestar.FilepathGlob(file.Source)
+	sources, err := file.Sources()
 	if err != nil {
-		return fmt.Errorf("invalid source pattern %q: %w", file.Source, err)
+		return err
 	}
 
 	// Derive source language from the first source file if not set in config.
@@ -61,9 +59,9 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 	if err != nil {
 		return err
 	}
-	sources, err := doublestar.FilepathGlob(file.Source)
+	sources, err := file.Sources()
 	if err != nil {
-		return fmt.Errorf("invalid source pattern %q: %w", file.Source, err)
+		return err
 	}
 	sourceLanguage := file.Language
 	if sourceLanguage == "" && len(sources) > 0 {

@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
@@ -62,12 +61,9 @@ func runSync(_ *cobra.Command, _ []string) error {
 	var results []fileNewKeys
 
 	for _, file := range cfg.Files {
-		sources, err := doublestar.FilepathGlob(file.Source)
+		sources, err := file.Sources()
 		if err != nil {
-			return fmt.Errorf("invalid source pattern %q: %w", file.Source, err)
-		}
-		if len(sources) == 0 {
-			return fmt.Errorf("no files matched source pattern %q", file.Source)
+			return err
 		}
 
 		keySet := map[string]bool{}
