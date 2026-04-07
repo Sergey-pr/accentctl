@@ -9,8 +9,8 @@ import (
 
 	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
+	"github.com/sergey-pr/accentctl/internal/helpers"
 	"github.com/sergey-pr/accentctl/internal/output"
-	"github.com/sergey-pr/accentctl/internal/utils"
 )
 
 var pullCmd = &cobra.Command{
@@ -54,7 +54,7 @@ func runPull(_ *cobra.Command, _ []string) error {
 }
 
 func pullFile(client *api.Client, file config.File, orderBy string) error {
-	slugs, err := utils.LanguageSlugsFromFilesystem(file.Target)
+	slugs, err := helpers.LanguageSlugsFromFilesystem(file.Target)
 	if err != nil {
 		return err
 	}
@@ -68,8 +68,8 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 
 	for _, slug := range slugs {
 		for _, src := range sources {
-			docPath := utils.DocumentName(src)
-			targetPath := utils.ApplyTargetTemplate(file.Target, slug, docPath)
+			docPath := helpers.DocumentName(src)
+			targetPath := helpers.ApplyTargetTemplate(file.Target, slug, docPath)
 			err := client.Export(targetPath, docPath, file.Format, slug, opts)
 			if errors.Is(err, api.ErrNotFound) {
 				continue
@@ -78,7 +78,7 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 				return err
 			}
 			if file.Format == "json" && (orderBy == "key" || orderBy == "-key") {
-				if err := utils.SortJSONFile(targetPath, orderBy == "-key"); err != nil {
+				if err := helpers.SortJSONFile(targetPath, orderBy == "-key"); err != nil {
 					return err
 				}
 			}

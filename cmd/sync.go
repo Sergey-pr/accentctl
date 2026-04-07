@@ -10,8 +10,8 @@ import (
 	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
 	"github.com/sergey-pr/accentctl/internal/constants"
+	"github.com/sergey-pr/accentctl/internal/helpers"
 	"github.com/sergey-pr/accentctl/internal/output"
-	"github.com/sergey-pr/accentctl/internal/utils"
 )
 
 var syncCmd = &cobra.Command{
@@ -68,10 +68,10 @@ func runSync(_ *cobra.Command, _ []string) error {
 
 		keySet := map[string]bool{}
 		for _, src := range sources {
-			documentPath := utils.DocumentName(src)
+			documentPath := helpers.DocumentName(src)
 			language := file.Language
 			if language == "" {
-				language = utils.LanguageFromPath(filepath.ToSlash(src), file.Target)
+				language = helpers.LanguageFromPath(filepath.ToSlash(src), file.Target)
 			}
 
 			if syncForce {
@@ -85,7 +85,7 @@ func runSync(_ *cobra.Command, _ []string) error {
 				return err
 			}
 			for _, l := range newLeaves {
-				keySet[utils.LeafKey(l.Path)] = true
+				keySet[helpers.LeafKey(l.Path)] = true
 			}
 		}
 		results = append(results, fileNewKeys{file, keySet})
@@ -95,12 +95,12 @@ func runSync(_ *cobra.Command, _ []string) error {
 	for _, r := range results {
 		if syncForce {
 			// Force all translations for all languages.
-			if err := addTranslationsFile(client, r.file, "force"); err != nil {
+			if err := helpers.AddTranslationsFile(client, r.file, "force", verbose); err != nil {
 				return err
 			}
 		} else if len(r.keySet) > 0 {
 			// Force translations only for the newly added source keys.
-			if err := addTranslationsForNewKeys(client, r.file, r.keySet); err != nil {
+			if err := helpers.AddTranslationsForNewKeys(client, r.file, r.keySet, verbose); err != nil {
 				return err
 			}
 		}
@@ -126,7 +126,7 @@ func runSync(_ *cobra.Command, _ []string) error {
 // uploads them in batches of ChunkSize using passive sync.
 // With force=true, treats all local keys as new (re-uploads everything).
 // Returns the uploaded leaf entries so callers can push their translations.
-func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]utils.LeafEntry, error) {
+func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]helpers.LeafEntry, error) {
 	var existing []byte
 	if !force {
 		var err error
@@ -136,7 +136,7 @@ func syncFileChunked(client *api.Client, src, documentPath, format, language, or
 		}
 	}
 
-	chunks, newLeaves, err := utils.NewKeysChunksWithLeaves(src, existing, constants.ChunkSize)
+	chunks, newLeaves, err := helpers.NewKeysChunksWithLeaves(src, existing, constants.ChunkSize)
 	if err != nil {
 		return nil, fmt.Errorf("%s: chunking failed: %w", src, err)
 	}

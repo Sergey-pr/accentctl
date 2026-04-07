@@ -1,4 +1,4 @@
-package cmd
+package helpers
 
 import (
 	"errors"
@@ -10,11 +10,10 @@ import (
 	"github.com/sergey-pr/accentctl/internal/config"
 	"github.com/sergey-pr/accentctl/internal/constants"
 	"github.com/sergey-pr/accentctl/internal/output"
-	"github.com/sergey-pr/accentctl/internal/utils"
 )
 
-func addTranslationsFile(client *api.Client, file config.File, mergeType string) error {
-	slugs, err := utils.LanguageSlugsFromFilesystem(file.Target)
+func AddTranslationsFile(client *api.Client, file config.File, mergeType string, verbose bool) error {
+	slugs, err := LanguageSlugsFromFilesystem(file.Target)
 	if err != nil {
 		return err
 	}
@@ -27,7 +26,7 @@ func addTranslationsFile(client *api.Client, file config.File, mergeType string)
 	// Derive source language from the first source file if not set in config.
 	sourceLanguage := file.Language
 	if sourceLanguage == "" && len(sources) > 0 {
-		sourceLanguage = utils.LanguageFromPath(filepath.ToSlash(sources[0]), file.Target)
+		sourceLanguage = LanguageFromPath(filepath.ToSlash(sources[0]), file.Target)
 	}
 
 	for _, slug := range slugs {
@@ -35,13 +34,13 @@ func addTranslationsFile(client *api.Client, file config.File, mergeType string)
 			continue
 		}
 		for _, src := range sources {
-			docPath := utils.DocumentName(src)
-			localPath := utils.ApplyTargetTemplate(file.Target, slug, docPath)
+			docPath := DocumentName(src)
+			localPath := ApplyTargetTemplate(file.Target, slug, docPath)
 			if _, err := os.Stat(localPath); err != nil {
 				continue
 			}
 
-			if err := addTranslationsChunked(client, localPath, docPath, file.Format, slug, mergeType); err != nil {
+			if err := addTranslationsChunked(client, localPath, docPath, file.Format, slug, mergeType, verbose); err != nil {
 				return err
 			}
 		}
@@ -50,12 +49,12 @@ func addTranslationsFile(client *api.Client, file config.File, mergeType string)
 	return nil
 }
 
-// addTranslationsForNewKeys force-pushes translations for keys that were just
+// AddTranslationsForNewKeys force-pushes translations for keys that were just
 // added to the source language. Accent auto-creates empty entries for new
 // source keys in all languages, so a normal new-key diff finds nothing we
 // must target these keys explicitly using force merge.
-func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet map[string]bool) error {
-	slugs, err := utils.LanguageSlugsFromFilesystem(file.Target)
+func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet map[string]bool, verbose bool) error {
+	slugs, err := LanguageSlugsFromFilesystem(file.Target)
 	if err != nil {
 		return err
 	}
@@ -65,7 +64,7 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 	}
 	sourceLanguage := file.Language
 	if sourceLanguage == "" && len(sources) > 0 {
-		sourceLanguage = utils.LanguageFromPath(filepath.ToSlash(sources[0]), file.Target)
+		sourceLanguage = LanguageFromPath(filepath.ToSlash(sources[0]), file.Target)
 	}
 
 	for _, slug := range slugs {
@@ -73,8 +72,8 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 			continue
 		}
 		for _, src := range sources {
-			docPath := utils.DocumentName(src)
-			localPath := utils.ApplyTargetTemplate(file.Target, slug, docPath)
+			docPath := DocumentName(src)
+			localPath := ApplyTargetTemplate(file.Target, slug, docPath)
 			if _, err := os.Stat(localPath); err != nil {
 				continue
 			}
@@ -83,15 +82,15 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 			if err != nil {
 				return fmt.Errorf("%s: %w", localPath, err)
 			}
-			obj, err := utils.ParseJSONObject(data)
+			obj, err := ParseJSONObject(data)
 			if err != nil || obj == nil {
 				continue
 			}
 
 			// Keep only leaves whose path is in the new-key set.
-			var targetLeaves []utils.LeafEntry
-			for _, l := range utils.CollectLeaves(obj, nil) {
-				if newKeySet[utils.LeafKey(l.Path)] {
+			var targetLeaves []LeafEntry
+			for _, l := range CollectLeaves(obj, nil) {
+				if newKeySet[LeafKey(l.Path)] {
 					targetLeaves = append(targetLeaves, l)
 				}
 			}
@@ -111,7 +110,7 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 					end = len(targetLeaves)
 				}
 				// Cumulative so earlier chunks aren't absent from later ones.
-				chunkData, err := utils.MarshalLeaves(targetLeaves[:end])
+				chunkData, err := MarshalLeaves(targetLeaves[:end])
 				if err != nil {
 					return err
 				}
@@ -151,7 +150,7 @@ func addTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 	return nil
 }
 
-func addTranslationsChunked(client *api.Client, localPath, docPath, format, language, mergeType string) error {
+func addTranslationsChunked(client *api.Client, localPath, docPath, format, language, mergeType string, verbose bool) error {
 	var existing []byte
 	if mergeType != "force" {
 		var err error
@@ -162,7 +161,7 @@ func addTranslationsChunked(client *api.Client, localPath, docPath, format, lang
 	}
 	// With force: pass nil so all local keys are treated as new and uploaded.
 
-	chunks, newCount, err := utils.NewKeysChunks(localPath, existing, constants.ChunkSize)
+	chunks, newCount, err := NewKeysChunks(localPath, existing, constants.ChunkSize)
 	if err != nil {
 		return fmt.Errorf("%s: chunking failed: %w", localPath, err)
 	}

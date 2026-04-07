@@ -9,8 +9,8 @@ import (
 
 	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
+	"github.com/sergey-pr/accentctl/internal/helpers"
 	"github.com/sergey-pr/accentctl/internal/output"
-	"github.com/sergey-pr/accentctl/internal/utils"
 )
 
 var statusCmd = &cobra.Command{
@@ -35,7 +35,7 @@ func runStatus(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		slugs, err := utils.LanguageSlugsFromFilesystem(file.Target)
+		slugs, err := helpers.LanguageSlugsFromFilesystem(file.Target)
 		if err != nil {
 			return err
 		}
@@ -43,15 +43,15 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		// Determine source language.
 		sourceLanguage := file.Language
 		if sourceLanguage == "" && len(sources) > 0 {
-			sourceLanguage = utils.LanguageFromPath(filepath.ToSlash(sources[0]), file.Target)
+			sourceLanguage = helpers.LanguageFromPath(filepath.ToSlash(sources[0]), file.Target)
 		}
 
 		// Check source files.
 		for _, src := range sources {
-			docPath := utils.DocumentName(src)
+			docPath := helpers.DocumentName(src)
 			language := file.Language
 			if language == "" {
-				language = utils.LanguageFromPath(filepath.ToSlash(src), file.Target)
+				language = helpers.LanguageFromPath(filepath.ToSlash(src), file.Target)
 			}
 
 			toPush, toDelete, err := diffWithAccent(client, src, docPath, file.Format, language)
@@ -67,8 +67,8 @@ func runStatus(_ *cobra.Command, _ []string) error {
 				continue
 			}
 			for _, src := range sources {
-				docPath := utils.DocumentName(src)
-				localPath := utils.ApplyTargetTemplate(file.Target, slug, docPath)
+				docPath := helpers.DocumentName(src)
+				localPath := helpers.ApplyTargetTemplate(file.Target, slug, docPath)
 				if _, err := os.Stat(localPath); err != nil {
 					continue
 				}
@@ -99,37 +99,37 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 		return 0, 0, fmt.Errorf("%s: %w", localPath, err)
 	}
 
-	localObj, err := utils.ParseJSONObject(localData)
+	localObj, err := helpers.ParseJSONObject(localData)
 	if err != nil {
 		output.Info(fmt.Sprintf("%s: skipping malformed JSON: %v", localPath, err))
 		return 0, 0, nil
 	}
 	var localSet map[string]bool
-	var localLeaves []utils.LeafEntry
+	var localLeaves []helpers.LeafEntry
 	if localObj != nil {
-		localLeaves = utils.CollectLeaves(localObj, nil)
+		localLeaves = helpers.CollectLeaves(localObj, nil)
 		localSet = make(map[string]bool, len(localLeaves))
 		for _, l := range localLeaves {
-			localSet[utils.LeafKey(l.Path)] = true
+			localSet[helpers.LeafKey(l.Path)] = true
 		}
 	}
 
 	accentSet := map[string]bool{}
 	if len(existingData) > 0 {
-		accObj, err := utils.ParseJSONObject(existingData)
+		accObj, err := helpers.ParseJSONObject(existingData)
 		if err != nil {
 			output.Info(fmt.Sprintf("%s: skipping malformed server response: %v", localPath, err))
 			return 0, 0, nil
 		}
 		if accObj != nil {
-			for _, l := range utils.CollectLeaves(accObj, nil) {
-				accentSet[utils.LeafKey(l.Path)] = true
+			for _, l := range helpers.CollectLeaves(accObj, nil) {
+				accentSet[helpers.LeafKey(l.Path)] = true
 			}
 		}
 	}
 
 	for _, l := range localLeaves {
-		if !accentSet[utils.LeafKey(l.Path)] {
+		if !accentSet[helpers.LeafKey(l.Path)] {
 			toPush++
 		}
 	}

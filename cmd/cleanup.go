@@ -10,8 +10,8 @@ import (
 	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
 	"github.com/sergey-pr/accentctl/internal/constants"
+	"github.com/sergey-pr/accentctl/internal/helpers"
 	"github.com/sergey-pr/accentctl/internal/output"
-	"github.com/sergey-pr/accentctl/internal/utils"
 )
 
 var cleanupCmd = &cobra.Command{
@@ -39,10 +39,10 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 		}
 
 		for _, src := range sources {
-			documentPath := utils.DocumentName(src)
+			documentPath := helpers.DocumentName(src)
 			language := file.Language
 			if language == "" {
-				language = utils.LanguageFromPath(filepath.ToSlash(src), file.Target)
+				language = helpers.LanguageFromPath(filepath.ToSlash(src), file.Target)
 			}
 			if err := cleanupFileChunked(client, src, documentPath, file.Format, language); err != nil {
 				return err
@@ -73,12 +73,12 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 		return nil
 	}
 
-	accObj, err := utils.ParseJSONObject(existingData)
+	accObj, err := helpers.ParseJSONObject(existingData)
 	if err != nil || accObj == nil {
 		output.Info(fmt.Sprintf("%s: no keys on server", src))
 		return nil
 	}
-	allLeaves := utils.CollectLeaves(accObj, nil)
+	allLeaves := helpers.CollectLeaves(accObj, nil)
 	if len(allLeaves) == 0 {
 		output.Info(fmt.Sprintf("%s: no keys on server", src))
 		return nil
@@ -109,7 +109,7 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 		}
 		remaining := allLeaves[end:]
 
-		data, err := utils.MarshalLeaves(remaining)
+		data, err := helpers.MarshalLeaves(remaining)
 		if err != nil {
 			return fmt.Errorf("%s: %w", src, err)
 		}
@@ -161,25 +161,25 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 		return fmt.Errorf("%s: %w", src, err)
 	}
 
-	localObj, err := utils.ParseJSONObject(localData)
+	localObj, err := helpers.ParseJSONObject(localData)
 	if err != nil || localObj == nil {
 		return fmt.Errorf("%s: not a JSON object", src)
 	}
-	localLeaves := utils.CollectLeaves(localObj, nil)
+	localLeaves := helpers.CollectLeaves(localObj, nil)
 
 	// Build set of local leaf keys.
 	localSet := make(map[string]bool, len(localLeaves))
 	for _, l := range localLeaves {
-		localSet[utils.LeafKey(l.Path)] = true
+		localSet[helpers.LeafKey(l.Path)] = true
 	}
 
 	// Find orphaned leaves (in Accent but not in local file).
-	var orphaned []utils.LeafEntry
+	var orphaned []helpers.LeafEntry
 	if len(existingData) > 0 {
-		accObj, err := utils.ParseJSONObject(existingData)
+		accObj, err := helpers.ParseJSONObject(existingData)
 		if err == nil && accObj != nil {
-			for _, l := range utils.CollectLeaves(accObj, nil) {
-				if !localSet[utils.LeafKey(l.Path)] {
+			for _, l := range helpers.CollectLeaves(accObj, nil) {
+				if !localSet[helpers.LeafKey(l.Path)] {
 					orphaned = append(orphaned, l)
 				}
 			}
@@ -213,7 +213,7 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 		remaining := orphaned[end:]
 		combined := append(localLeaves, remaining...)
 
-		data, err := utils.MarshalLeaves(combined)
+		data, err := helpers.MarshalLeaves(combined)
 		if err != nil {
 			return fmt.Errorf("%s: %w", src, err)
 		}
