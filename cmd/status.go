@@ -105,12 +105,12 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 		return 0, 0, nil
 	}
 	var localSet map[string]bool
-	var localLeaves []helpers.LeafEntry
+	var localNodes []helpers.NodeEntry
 	if localObj != nil {
-		localLeaves = helpers.CollectLeaves(localObj, nil)
-		localSet = make(map[string]bool, len(localLeaves))
-		for _, l := range localLeaves {
-			localSet[helpers.LeafKey(l.Path)] = true
+		localNodes = helpers.CollectNodes(localObj, nil)
+		localSet = make(map[string]bool, len(localNodes))
+		for _, l := range localNodes {
+			localSet[helpers.NodeKey(l.Path)] = true
 		}
 	}
 
@@ -122,14 +122,14 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 			return 0, 0, nil
 		}
 		if accObj != nil {
-			for _, l := range helpers.CollectLeaves(accObj, nil) {
-				accentSet[helpers.LeafKey(l.Path)] = true
+			for _, l := range helpers.CollectNodes(accObj, nil) {
+				accentSet[helpers.NodeKey(l.Path)] = true
 			}
 		}
 	}
 
-	for _, l := range localLeaves {
-		if !accentSet[helpers.LeafKey(l.Path)] {
+	for _, l := range localNodes {
+		if !accentSet[helpers.NodeKey(l.Path)] {
 			toPush++
 		}
 	}

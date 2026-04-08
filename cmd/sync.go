@@ -80,12 +80,12 @@ func runSync(_ *cobra.Command, _ []string) error {
 				}
 			}
 
-			newLeaves, err := syncFileChunked(client, src, documentPath, file.Format, language, syncOrderBy, syncForce)
+			newNodes, err := syncFileChunked(client, src, documentPath, file.Format, language, syncOrderBy, syncForce)
 			if err != nil {
 				return err
 			}
-			for _, l := range newLeaves {
-				keySet[helpers.LeafKey(l.Path)] = true
+			for _, l := range newNodes {
+				keySet[helpers.NodeKey(l.Path)] = true
 			}
 		}
 		results = append(results, fileNewKeys{file, keySet})
@@ -140,13 +140,13 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 		output.Info(fmt.Sprintf("%s: no keys on server", src))
 		return nil
 	}
-	allLeaves := helpers.CollectLeaves(accObj, nil)
-	if len(allLeaves) == 0 {
+	allNodes := helpers.CollectNodes(accObj, nil)
+	if len(allNodes) == 0 {
 		output.Info(fmt.Sprintf("%s: no keys on server", src))
 		return nil
 	}
 
-	total := len(allLeaves)
+	total := len(allNodes)
 	// +1 for the final empty-file chunk
 	nChunks := (total + constants.ChunkSize - 1) / constants.ChunkSize
 	output.Info(fmt.Sprintf("%s: deleting %d keys in %d chunk(s)", src, total, nChunks))
@@ -163,15 +163,15 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 	for start := 0; start <= total; start += constants.ChunkSize {
 		chunkNum++
 
-		// Upload allLeaves[start+constants.ChunkSize:].
+		// Upload allNodes[start+constants.ChunkSize:].
 		// When start >= total the remaining slice is empty and uploads "{}".
 		end := start + constants.ChunkSize
 		if end > total {
 			end = total
 		}
-		remaining := allLeaves[end:]
+		remaining := allNodes[end:]
 
-		data, err := helpers.MarshalLeaves(remaining)
+		data, err := helpers.MarshalNodes(remaining)
 		if err != nil {
 			return fmt.Errorf("%s: %w", src, err)
 		}
@@ -205,11 +205,11 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 	return nil
 }
 
-// syncFileChunked fetches the current Accent state, finds new leaf keys, and
+// syncFileChunked fetches the current Accent state, finds new keys, and
 // uploads them in batches of ChunkSize using passive sync.
 // With force=true, treats all local keys as new (re-uploads everything).
-// Returns the uploaded leaf entries so callers can push their translations.
-func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]helpers.LeafEntry, error) {
+// Returns the uploaded node entries so callers can push their translations.
+func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]helpers.NodeEntry, error) {
 	var existing []byte
 	if !force {
 		var err error
@@ -219,7 +219,7 @@ func syncFileChunked(client *api.Client, src, documentPath, format, language, or
 		}
 	}
 
-	chunks, newLeaves, err := helpers.NewKeysChunksWithLeaves(src, existing, constants.ChunkSize)
+	chunks, newNodes, err := helpers.NewKeysChunksWithNodes(src, existing, constants.ChunkSize)
 	if err != nil {
 		return nil, fmt.Errorf("%s: chunking failed: %w", src, err)
 	}
@@ -237,7 +237,7 @@ func syncFileChunked(client *api.Client, src, documentPath, format, language, or
 		return nil, nil
 	}
 
-	output.Info(fmt.Sprintf("%s: %d keys -> %d chunk(s)", src, len(newLeaves), len(chunks)))
+	output.Info(fmt.Sprintf("%s: %d keys -> %d chunk(s)", src, len(newNodes), len(chunks)))
 
 	opts := api.SyncOptions{SyncType: "passive", OrderBy: orderBy}
 
@@ -256,5 +256,5 @@ func syncFileChunked(client *api.Client, src, documentPath, format, language, or
 			output.ChunkProgress(src, i+1, len(chunks))
 		}
 	}
-	return newLeaves, nil
+	return newNodes, nil
 }

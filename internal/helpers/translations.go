@@ -87,30 +87,30 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 				continue
 			}
 
-			// Keep only leaves whose path is in the new-key set.
-			var targetLeaves []LeafEntry
-			for _, l := range CollectLeaves(obj, nil) {
-				if newKeySet[LeafKey(l.Path)] {
-					targetLeaves = append(targetLeaves, l)
+			// Keep only nodes whose path is in the new-key set.
+			var targetNodes []NodeEntry
+			for _, l := range CollectNodes(obj, nil) {
+				if newKeySet[NodeKey(l.Path)] {
+					targetNodes = append(targetNodes, l)
 				}
 			}
-			if len(targetLeaves) == 0 {
+			if len(targetNodes) == 0 {
 				output.Info(fmt.Sprintf("%s: no new translations", localPath))
 				continue
 			}
 
-			nChunks := (len(targetLeaves) + constants.ChunkSize - 1) / constants.ChunkSize
-			output.Info(fmt.Sprintf("%s: %d new translations -> %d chunk(s)", localPath, len(targetLeaves), nChunks))
+			nChunks := (len(targetNodes) + constants.ChunkSize - 1) / constants.ChunkSize
+			output.Info(fmt.Sprintf("%s: %d new translations -> %d chunk(s)", localPath, len(targetNodes), nChunks))
 
 			opts := api.AddTranslationsOptions{MergeType: "force"}
 			var tmpFiles []string
-			for i := 0; i < len(targetLeaves); i += constants.ChunkSize {
+			for i := 0; i < len(targetNodes); i += constants.ChunkSize {
 				end := i + constants.ChunkSize
-				if end > len(targetLeaves) {
-					end = len(targetLeaves)
+				if end > len(targetNodes) {
+					end = len(targetNodes)
 				}
 				// Cumulative so earlier chunks aren't absent from later ones.
-				chunkData, err := MarshalLeaves(targetLeaves[:end])
+				chunkData, err := MarshalNodes(targetNodes[:end])
 				if err != nil {
 					return err
 				}

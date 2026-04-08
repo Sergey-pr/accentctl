@@ -7,26 +7,26 @@ import (
 	"strings"
 )
 
-// LeafEntry is a single leaf key path and its raw JSON value.
-type LeafEntry struct {
+// NodeEntry is a single node path and its raw JSON value.
+type NodeEntry struct {
 	Path  []string
 	Value json.RawMessage
 }
 
-// LeafKey returns a map-safe string for a path.
+// NodeKey returns a map-safe string for a path.
 // Uses \x00 as separator invalid in JSON string content.
-func LeafKey(path []string) string { return strings.Join(path, "\x00") }
+func NodeKey(path []string) string { return strings.Join(path, "\x00") }
 
-// CollectLeaves recursively gathers all leaf (non-object) entries from obj.
-func CollectLeaves(obj *JSONObject, prefix []string) []LeafEntry {
-	var out []LeafEntry
+// CollectNodes recursively gathers all non-object entries from obj.
+func CollectNodes(obj *JSONObject, prefix []string) []NodeEntry {
+	var out []NodeEntry
 	for _, k := range obj.Keys {
 		path := append(append([]string{}, prefix...), k)
 		child, _ := ParseJSONObject(obj.Values[k])
 		if child != nil {
-			out = append(out, CollectLeaves(child, path)...)
+			out = append(out, CollectNodes(child, path)...)
 		} else {
-			out = append(out, LeafEntry{Path: path, Value: obj.Values[k]})
+			out = append(out, NodeEntry{Path: path, Value: obj.Values[k]})
 		}
 	}
 	return out
@@ -38,14 +38,14 @@ type treeNode struct {
 	value    json.RawMessage
 }
 
-func buildTree(leaves []LeafEntry) *treeNode {
+func buildTree(nodes []NodeEntry) *treeNode {
 	root := &treeNode{children: map[string]*treeNode{}}
-	for _, leaf := range leaves {
+	for _, n := range nodes {
 		node := root
-		for i, k := range leaf.Path {
-			if i == len(leaf.Path)-1 {
+		for i, k := range n.Path {
+			if i == len(n.Path)-1 {
 				node.keys = append(node.keys, k)
-				node.children[k] = &treeNode{value: leaf.Value}
+				node.children[k] = &treeNode{value: n.Value}
 			} else {
 				if _, exists := node.children[k]; !exists {
 					node.keys = append(node.keys, k)
@@ -81,15 +81,15 @@ func marshalTree(node *treeNode) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// MarshalLeaves builds a nested JSON object from a slice of leaf entries.
-func MarshalLeaves(leaves []LeafEntry) ([]byte, error) {
-	return marshalTree(buildTree(leaves))
+// MarshalNodes builds a nested JSON object from a slice of node entries.
+func MarshalNodes(nodes []NodeEntry) ([]byte, error) {
+	return marshalTree(buildTree(nodes))
 }
 
-// NewKeysChunksWithLeaves compares the local source file against existingData
-// at the leaf level, produces temp files of at most chunkSize new leaf keys,
-// and returns both the file paths and the new leaf entries.
-func NewKeysChunksWithLeaves(localPath string, existingData []byte, chunkSize int) (paths []string, newLeaves []LeafEntry, err error) {
+// NewKeysChunksWithNodes compares the local source file against existingData,
+// produces temp files of at most chunkSize new keys,
+// and returns both the file paths and the new node entries.
+func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int) (paths []string, newNodes []NodeEntry, err error) {
 	localData, err := os.ReadFile(localPath)
 	if err != nil {
 		return nil, nil, err
@@ -100,38 +100,38 @@ func NewKeysChunksWithLeaves(localPath string, existingData []byte, chunkSize in
 	}
 
 	existingSet := map[string]bool{}
-	var existingLeaves []LeafEntry
+	var existingNodes []NodeEntry
 	if len(existingData) > 0 {
 		accObj, err := ParseJSONObject(existingData)
 		if err == nil && accObj != nil {
-			existingLeaves = CollectLeaves(accObj, nil)
-			for _, leaf := range existingLeaves {
-				existingSet[LeafKey(leaf.Path)] = true
+			existingNodes = CollectNodes(accObj, nil)
+			for _, n := range existingNodes {
+				existingSet[NodeKey(n.Path)] = true
 			}
 		}
 	}
 
-	allLeaves := CollectLeaves(localObj, nil)
-	for _, l := range allLeaves {
-		if !existingSet[LeafKey(l.Path)] {
-			newLeaves = append(newLeaves, l)
+	allNodes := CollectNodes(localObj, nil)
+	for _, l := range allNodes {
+		if !existingSet[NodeKey(l.Path)] {
+			newNodes = append(newNodes, l)
 		}
 	}
 
-	if len(newLeaves) == 0 {
+	if len(newNodes) == 0 {
 		return nil, nil, nil
 	}
 
-	for i := 0; i < len(newLeaves); i += chunkSize {
+	for i := 0; i < len(newNodes); i += chunkSize {
 		end := i + chunkSize
-		if end > len(newLeaves) {
-			end = len(newLeaves)
+		if end > len(newNodes) {
+			end = len(newNodes)
 		}
-		combined := make([]LeafEntry, 0, len(existingLeaves)+end)
-		combined = append(combined, existingLeaves...)
-		combined = append(combined, newLeaves[:end]...)
+		combined := make([]NodeEntry, 0, len(existingNodes)+end)
+		combined = append(combined, existingNodes...)
+		combined = append(combined, newNodes[:end]...)
 
-		data, err := MarshalLeaves(combined)
+		data, err := MarshalNodes(combined)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -146,12 +146,12 @@ func NewKeysChunksWithLeaves(localPath string, existingData []byte, chunkSize in
 		_ = tmp.Close()
 		paths = append(paths, tmp.Name())
 	}
-	return paths, newLeaves, nil
+	return paths, newNodes, nil
 }
 
-// NewKeysChunks is like NewKeysChunksWithLeaves but returns only the count of
-// new keys instead of the leaf entries.
+// NewKeysChunks is like NewKeysChunksWithNodes but returns only the count of
+// new keys instead of the node entries.
 func NewKeysChunks(localPath string, existingData []byte, chunkSize int) (paths []string, newCount int, err error) {
-	paths, newLeaves, err := NewKeysChunksWithLeaves(localPath, existingData, chunkSize)
-	return paths, len(newLeaves), err
+	paths, newNodes, err := NewKeysChunksWithNodes(localPath, existingData, chunkSize)
+	return paths, len(newNodes), err
 }

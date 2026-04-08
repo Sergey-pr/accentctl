@@ -82,21 +82,21 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 	if err != nil || localObj == nil {
 		return fmt.Errorf("%s: not a JSON object", src)
 	}
-	localLeaves := helpers.CollectLeaves(localObj, nil)
+	localNodes := helpers.CollectNodes(localObj, nil)
 
-	// Build set of local leaf keys.
-	localSet := make(map[string]bool, len(localLeaves))
-	for _, l := range localLeaves {
-		localSet[helpers.LeafKey(l.Path)] = true
+	// Build set of local node keys.
+	localSet := make(map[string]bool, len(localNodes))
+	for _, l := range localNodes {
+		localSet[helpers.NodeKey(l.Path)] = true
 	}
 
-	// Find orphaned leaves (in Accent but not in local file).
-	var orphaned []helpers.LeafEntry
+	// Find orphaned nodes (in Accent but not in local file).
+	var orphaned []helpers.NodeEntry
 	if len(existingData) > 0 {
 		accObj, err := helpers.ParseJSONObject(existingData)
 		if err == nil && accObj != nil {
-			for _, l := range helpers.CollectLeaves(accObj, nil) {
-				if !localSet[helpers.LeafKey(l.Path)] {
+			for _, l := range helpers.CollectNodes(accObj, nil) {
+				if !localSet[helpers.NodeKey(l.Path)] {
 					orphaned = append(orphaned, l)
 				}
 			}
@@ -128,9 +128,9 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 			end = total
 		}
 		remaining := orphaned[end:]
-		combined := append(localLeaves, remaining...)
+		combined := append(localNodes, remaining...)
 
-		data, err := helpers.MarshalLeaves(combined)
+		data, err := helpers.MarshalNodes(combined)
 		if err != nil {
 			return fmt.Errorf("%s: %w", src, err)
 		}
