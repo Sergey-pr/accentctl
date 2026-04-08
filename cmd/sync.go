@@ -122,6 +122,89 @@ func runSync(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
+// deleteAllKeysChunked deletes every key in Accent for the given document by
+// uploading progressively smaller files, each removing chunk size via smart sync.
+// The final upload is an empty object which clears all remaining keys.
+func deleteAllKeysChunked(client *api.Client, src, documentPath, format, language string) error {
+	existingData, err := client.ExportBytes(documentPath, format, language)
+	if err != nil {
+		return fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
+	}
+	if len(existingData) == 0 {
+		output.Info(fmt.Sprintf("%s: no keys on server", src))
+		return nil
+	}
+
+	accObj, err := helpers.ParseJSONObject(existingData)
+	if err != nil || accObj == nil {
+		output.Info(fmt.Sprintf("%s: no keys on server", src))
+		return nil
+	}
+	allLeaves := helpers.CollectLeaves(accObj, nil)
+	if len(allLeaves) == 0 {
+		output.Info(fmt.Sprintf("%s: no keys on server", src))
+		return nil
+	}
+
+	total := len(allLeaves)
+	// +1 for the final empty-file chunk
+	nChunks := (total + constants.ChunkSize - 1) / constants.ChunkSize
+	output.Info(fmt.Sprintf("%s: deleting %d keys in %d chunk(s)", src, total, nChunks))
+
+	opts := api.SyncOptions{SyncType: "smart"}
+	var tmpFiles []string
+	defer func() {
+		for _, p := range tmpFiles {
+			_ = os.Remove(p)
+		}
+	}()
+
+	chunkNum := 0
+	for start := 0; start <= total; start += constants.ChunkSize {
+		chunkNum++
+
+		// Upload allLeaves[start+constants.ChunkSize:].
+		// When start >= total the remaining slice is empty and uploads "{}".
+		end := start + constants.ChunkSize
+		if end > total {
+			end = total
+		}
+		remaining := allLeaves[end:]
+
+		data, err := helpers.MarshalLeaves(remaining)
+		if err != nil {
+			return fmt.Errorf("%s: %w", src, err)
+		}
+
+		tmp, err := os.CreateTemp("", "accentctl-del-*.json")
+		if err != nil {
+			return err
+		}
+		if _, err := tmp.Write(data); err != nil {
+			_ = tmp.Close()
+			return err
+		}
+		_ = tmp.Close()
+
+		tmpName := tmp.Name()
+
+		tmpFiles = append(tmpFiles, tmpName)
+
+		if verbose {
+			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
+		}
+		err = syncChunk(client, src, documentPath, format, language, tmpName, chunkNum, nChunks, opts)
+		if err != nil {
+			return err
+		}
+
+		if end >= total {
+			break
+		}
+	}
+	return nil
+}
+
 // syncFileChunked fetches the current Accent state, finds new leaf keys, and
 // uploads them in batches of ChunkSize using passive sync.
 // With force=true, treats all local keys as new (re-uploads everything).
