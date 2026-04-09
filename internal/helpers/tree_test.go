@@ -29,8 +29,8 @@ func writeTempJSON(t *testing.T, content string) string {
 	if _, err := f.WriteString(content); err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
-	t.Cleanup(func() { os.Remove(f.Name()) })
+	_ = f.Close()
+	t.Cleanup(func() { _ = os.Remove(f.Name()) })
 	return f.Name()
 }
 
@@ -164,7 +164,9 @@ func TestNewKeysChunksWithNodes_allNew(t *testing.T) {
 	if len(paths) != 1 {
 		t.Errorf("want 1 chunk, got %d", len(paths))
 	}
-	defer os.Remove(paths[0])
+	defer func() {
+		_ = os.Remove(paths[0])
+	}()
 
 	data, _ := os.ReadFile(paths[0])
 	jsonEqual(t, data, `{"a":"1","b":"2","c":"3"}`)
@@ -193,7 +195,7 @@ func TestNewKeysChunksWithNodes_partialNew(t *testing.T) {
 	}
 	defer func() {
 		for _, p := range paths {
-			os.Remove(p)
+			_ = os.Remove(p)
 		}
 	}()
 
@@ -214,7 +216,7 @@ func TestNewKeysChunksWithNodes_chunking(t *testing.T) {
 	}
 	defer func() {
 		for _, p := range paths {
-			os.Remove(p)
+			_ = os.Remove(p)
 		}
 	}()
 
@@ -244,7 +246,7 @@ func TestNewKeysChunksWithNodes_chunkingWithExisting(t *testing.T) {
 	}
 	defer func() {
 		for _, p := range paths {
-			os.Remove(p)
+			_ = os.Remove(p)
 		}
 	}()
 
@@ -274,7 +276,7 @@ func TestNewKeysChunksWithNodes_nestedKeys(t *testing.T) {
 	}
 	defer func() {
 		for _, p := range paths {
-			os.Remove(p)
+			_ = os.Remove(p)
 		}
 	}()
 
@@ -294,7 +296,7 @@ func TestNewKeysChunksWithNodes_forceMode(t *testing.T) {
 	}
 	defer func() {
 		for _, p := range paths {
-			os.Remove(p)
+			_ = os.Remove(p)
 		}
 	}()
 
