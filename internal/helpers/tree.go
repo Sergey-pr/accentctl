@@ -102,9 +102,9 @@ func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int
 	existingSet := map[string]bool{}
 	var existingNodes []NodeEntry
 	if len(existingData) > 0 {
-		accObj, err := ParseJSONObject(existingData)
-		if err == nil && accObj != nil {
-			existingNodes = CollectNodes(accObj, nil)
+		accentObj, err := ParseJSONObject(existingData)
+		if err == nil && accentObj != nil {
+			existingNodes = CollectNodes(accentObj, nil)
 			for _, n := range existingNodes {
 				existingSet[NodeKey(n.Path)] = true
 			}
