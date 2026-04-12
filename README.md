@@ -102,10 +102,10 @@ accentctl sync --force
 accentctl sync --order-by key
 ```
 
-| Flag         | Default | Description                                                                |
-|--------------|---------|----------------------------------------------------------------------------|
-| `--force`    | false   | Delete all server keys first, re-upload everything, force all translations |
-| `--order-by` | `key`   | Key order in exported files                                                |
+| Flag         | Default | Description                                                                   |
+|--------------|---------|-------------------------------------------------------------------------------|
+| `--force`    | false   | Deletes all server keys first, re-uploads everything, forces all translations |
+| `--order-by` | `key`   | Key order in exported files                                                   |
 
 **`--order-by` values**
 
