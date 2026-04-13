@@ -178,11 +178,12 @@ accentctl key set your-api-key
 
 `accentctl` is a Go rewrite of the official TypeScript [accent-cli](https://github.com/mirego/accent-cli). Key differences:
 
-| Feature                | accent-cli                                                          | accentctl                                                      |
-|------------------------|---------------------------------------------------------------------|----------------------------------------------------------------|
-| **Single binary**      | Requires Node.js runtime                                            | Zero dependencies, single static binary                        |
-| **`key` ordering**     | Not working with nested keys                                        | Client-side recursive JSON sort works for flat and nested keys |
-| **Large file support** | Uploads translations in one batch can cause memory issues on server | Uploads translations in chunks                                 |
+| Feature                   | accent-cli                                                          | accentctl                                                      |
+|---------------------------|---------------------------------------------------------------------|----------------------------------------------------------------|
+| **Single binary**         | Requires Node.js runtime                                            | Zero dependencies, single static binary                        |
+| **`key` ordering**        | Not working with nested keys                                        | Client-side recursive JSON sort works for flat and nested keys |
+| **Large file support**    | Uploads translations in one batch can cause memory issues on server | Uploads translations in chunks                                 |
+| **Environment variables** | Api key and host are saved in config.json file                      | Can set api key and host to environment variables              |
 
 ## Shell completions
 
