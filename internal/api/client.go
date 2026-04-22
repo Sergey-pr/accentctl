@@ -17,7 +17,6 @@ import (
 )
 
 // ErrNotFound is returned when the API responds with HTTP 404.
-// Callers can use errors.Is(err, api.ErrNotFound) to skip missing resources.
 var ErrNotFound = fmt.Errorf("not found")
 
 type Client struct {
@@ -79,14 +78,12 @@ type PeekResult struct {
 
 // SyncOptions controls the sync operation.
 type SyncOptions struct {
-	DryRun   bool
 	SyncType string // smart | passive
 	OrderBy  string // index | key-asc
 }
 
 // AddTranslationsOptions controls the add-translations operation.
 type AddTranslationsOptions struct {
-	DryRun    bool
 	MergeType string // smart | passive | force
 }
 
@@ -96,12 +93,8 @@ type ExportOptions struct {
 }
 
 // Sync uploads a file and syncs it with Accent.
-// Returns peek stats when DryRun is true, nil otherwise.
 func (c *Client) Sync(filePath, documentPath, format, language string, opts SyncOptions) (*PeekResult, error) {
 	endpoint := c.apiURL + "/sync"
-	if opts.DryRun {
-		endpoint += "/peek"
-	}
 
 	body, contentType, err := buildMultipart(func(w *multipart.Writer) error {
 		if err := writeFile(w, "file", filePath); err != nil {
@@ -121,16 +114,12 @@ func (c *Client) Sync(filePath, documentPath, format, language string, opts Sync
 		return nil, err
 	}
 
-	return c.postOperation(endpoint, body, contentType, opts.DryRun)
+	return c.postOperation(endpoint, body, contentType)
 }
 
 // AddTranslations uploads a translation file to Accent.
 func (c *Client) AddTranslations(filePath, documentPath, format, language string, opts AddTranslationsOptions) (*PeekResult, error) {
 	endpoint := c.apiURL + "/add-translations"
-	if opts.DryRun {
-		endpoint += "/peek"
-	}
-
 	body, contentType, err := buildMultipart(func(w *multipart.Writer) error {
 		if err := writeFile(w, "file", filePath); err != nil {
 			return err
@@ -147,7 +136,7 @@ func (c *Client) AddTranslations(filePath, documentPath, format, language string
 		return nil, err
 	}
 
-	return c.postOperation(endpoint, body, contentType, opts.DryRun)
+	return c.postOperation(endpoint, body, contentType)
 }
 
 // ExportBytes fetches a translated file from Accent and returns its raw contents.
@@ -233,7 +222,7 @@ func (c *Client) setAuth(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 }
 
-func (c *Client) postOperation(endpoint string, body *bytes.Buffer, contentType string, isDryRun bool) (*PeekResult, error) {
+func (c *Client) postOperation(endpoint string, body *bytes.Buffer, contentType string) (*PeekResult, error) {
 	req, err := http.NewRequest(http.MethodPost, endpoint, body)
 	if err != nil {
 		return nil, err
@@ -254,10 +243,6 @@ func (c *Client) postOperation(endpoint string, body *bytes.Buffer, contentType 
 	}
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("API error: HTTP %d", resp.StatusCode)
-	}
-
-	if !isDryRun {
-		return nil, nil
 	}
 
 	var result struct {

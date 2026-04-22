@@ -163,8 +163,8 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 	for start := 0; start <= total; start += constants.ChunkSize {
 		chunkNum++
 
-		// Upload allNodes[start+constants.ChunkSize:].
-		// When start >= total the remaining slice is empty and uploads "{}".
+		// Upload allNodes[start+constants.ChunkSize:]
+		// When start >= total the remaining slice is empty and uploads "{}"
 		end := start + constants.ChunkSize
 		if end > total {
 			end = total
@@ -208,7 +208,6 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 // syncFileChunked fetches the current Accent state, finds new keys, and
 // uploads them in batches of ChunkSize using passive sync.
 // With force=true, treats all local keys as new (re-uploads everything).
-// Returns the uploaded node entries so callers can push their translations.
 func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) ([]helpers.NodeEntry, error) {
 	var existing []byte
 	if !force {
