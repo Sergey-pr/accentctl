@@ -34,8 +34,10 @@ var (
 )
 
 func init() {
-	syncCmd.Flags().StringVar(&syncOrderBy, "order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
-	syncCmd.Flags().BoolVar(&syncForce, "force", false, "Upload all source keys and force all translations for all languages")
+	syncCmd.Flags().StringVar(&syncOrderBy,
+		"order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
+	syncCmd.Flags().BoolVar(&syncForce,
+		"force", false, "Upload all source keys and force all translations for all languages")
 }
 
 func runSync(_ *cobra.Command, _ []string) error {
