@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// helpers
-
 func mustParse(t *testing.T, s string) *JSONObject {
 	t.Helper()
 	obj, err := ParseJSONObject([]byte(s))
@@ -50,8 +48,6 @@ func jsonEqual(t *testing.T, got []byte, want string) {
 	}
 }
 
-// --- NodeKey ---
-
 func TestNodeKey(t *testing.T) {
 	tests := []struct {
 		path []string
@@ -68,8 +64,6 @@ func TestNodeKey(t *testing.T) {
 		}
 	}
 }
-
-// --- CollectNodes ---
 
 func TestCollectNodes_flat(t *testing.T) {
 	obj := mustParse(t, `{"a":"1","b":"2","c":"3"}`)
@@ -126,8 +120,6 @@ func TestCollectNodes_preservesOrder(t *testing.T) {
 	}
 }
 
-// --- MarshalNodes ---
-
 func TestMarshalNodes_parseMarshal(t *testing.T) {
 	input := `{"a":"1","b":{"c":"2"}}`
 	obj := mustParse(t, input)
@@ -148,8 +140,6 @@ func TestMarshalNodes_empty(t *testing.T) {
 		t.Errorf("want {}, got %s", got)
 	}
 }
-
-// --- NewKeysChunksWithNodes ---
 
 func TestNewKeysChunksWithNodes_allNew(t *testing.T) {
 	// No existing data all local keys are new.

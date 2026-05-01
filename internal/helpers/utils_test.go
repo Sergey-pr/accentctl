@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// --- DocumentName ---
-
 func TestDocumentName(t *testing.T) {
 	tests := []struct {
 		input string
@@ -26,8 +24,6 @@ func TestDocumentName(t *testing.T) {
 		}
 	}
 }
-
-// --- ApplyTargetTemplate ---
 
 func TestApplyTargetTemplate(t *testing.T) {
 	tests := []struct {
@@ -65,8 +61,6 @@ func TestApplyTargetTemplate(t *testing.T) {
 		}
 	}
 }
-
-// --- LanguageFromPath ---
 
 func TestLanguageFromPath(t *testing.T) {
 	target := "locales/%slug%/%original_file_name%"

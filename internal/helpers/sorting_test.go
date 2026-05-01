@@ -109,8 +109,6 @@ func TestSortJSONFile_writesIndented(t *testing.T) {
 	}
 }
 
-// --- helpers ---
-
 func indexOf(s, substr string) int {
 	for i := range s {
 		if len(s[i:]) >= len(substr) && s[i:i+len(substr)] == substr {
