@@ -47,7 +47,8 @@ Run this once per project to save the key to `accent.local.json` which should be
 accentctl key set your-api-key
 ```
 
-You can commit `accent.json` without any secrets. The local file overrides `accent.json` values. The `init` command also prompts for an API key and saves it to `accent.local.json` automatically.
+You can commit `accent.json` without any secrets. The local file overrides `accent.json` values. The `init` 
+command also prompts for an API key and saves it to `accent.local.json` automatically.
 
 **Environment variables** override both config files:
 - `ACCENT_API_KEY`
@@ -94,7 +95,8 @@ Shell commands to run around `accentctl sync` or `accentctl pull`. Defined per f
 
 ### `accentctl sync`
 
-Upload new source keys to Accent in chunks, then force-push translations for those new keys to all target languages, then pull updated files.
+Upload new source keys to Accent in chunks, then force-push translations for those new keys to all target languages, 
+then pull updated files.
 
 ```sh
 accentctl sync
