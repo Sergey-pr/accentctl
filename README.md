@@ -178,7 +178,7 @@ accentctl key set your-api-key
 
 ## Improvements over accent-cli
 
-`accentctl` is a Go rewrite of the official TypeScript [accent-cli](https://github.com/mirego/accent-cli). Key differences:
+`accentctl` is a Go rewrite of the official [accent-cli](https://github.com/mirego/accent-cli). Key differences:
 
 | Feature                   | accent-cli                                                            | accentctl                                                      |
 |---------------------------|-----------------------------------------------------------------------|----------------------------------------------------------------|
