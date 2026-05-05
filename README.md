@@ -95,7 +95,7 @@ Shell commands to run around `accentctl sync` or `accentctl pull`. Defined per f
 
 ### `accentctl sync`
 
-Upload new source keys to Accent in chunks, then force-push translations for those new keys to all target languages, 
+Uploads new source keys to Accent in chunks, then force-push translations for those new keys to all target languages, 
 then pull updated files.
 
 ```sh
@@ -122,7 +122,7 @@ accentctl sync --order-by key
 
 ### `accentctl pull`
 
-Download translations from Accent and write them to your local filesystem.
+Downloads translations from Accent and write them to your local filesystem.
 
 ```sh
 accentctl pull
@@ -146,7 +146,7 @@ accentctl pull --order-by -key
 
 ### `accentctl cleanup`
 
-Remove keys from Accent that are no longer present in your local source files.
+Removes keys from Accent that are no longer present in your local source files.
 
 ```sh
 accentctl cleanup
@@ -154,7 +154,7 @@ accentctl cleanup
 
 ### `accentctl status`
 
-Show how many keys need pushing or deleting for each language file, compared to the current Accent state.
+Shows how many keys need pushing or deleting for each language file, compared to the current Accent state.
 
 ```sh
 accentctl status
@@ -162,7 +162,7 @@ accentctl status
 
 ### `accentctl init`
 
-Interactively create an `accent.json` config file.
+Interactively creates an `accent.json` config file.
 
 ```sh
 accentctl init
@@ -170,7 +170,7 @@ accentctl init
 
 ### `accentctl key set`
 
-Save an API key to `accent.local.json` (gitignored).
+Saves an API key to `accent.local.json`.
 
 ```sh
 accentctl key set your-api-key
