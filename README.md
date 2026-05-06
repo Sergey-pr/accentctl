@@ -1,6 +1,6 @@
 # accentctl
 
-A CLI tool for [Accent](https://www.accent.reviews/) the open-source translation management platform.
+A CLI tool for [Accent](https://www.accent.reviews/) the open-source translations management platform.
 
 ## Install
 
