@@ -39,8 +39,6 @@ func Info(msg string) {
 }
 
 // ChunkProgress renders an in-place progress bar.
-// Call with current=1..total; the line is finalised (newline printed) when
-// current == total.
 func ChunkProgress(label string, current, total int) {
 	const width = 25
 	filled := 0
