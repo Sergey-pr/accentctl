@@ -68,7 +68,10 @@ func marshalTree(node *treeNode) ([]byte, error) {
 		if i > 0 {
 			buf.WriteByte(',')
 		}
-		kb, _ := json.Marshal(k)
+		kb, err := json.Marshal(k)
+		if err != nil {
+			return nil, err
+		}
 		buf.Write(kb)
 		buf.WriteByte(':')
 		childData, err := marshalTree(node.children[k])
