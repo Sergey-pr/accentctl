@@ -89,9 +89,7 @@ func MarshalNodes(nodes []NodeEntry) ([]byte, error) {
 	return marshalTree(buildTree(nodes))
 }
 
-// NewKeysChunksWithNodes compares the local source file against existingData,
-// produces temp files of at most chunkSize new keys,
-// and returns both the file paths and the new node entries.
+// NewKeysChunksWithNodes compares the local source file against server data
 func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int) (paths []string, newNodes []NodeEntry, err error) {
 	localData, err := os.ReadFile(localPath)
 	if err != nil {
