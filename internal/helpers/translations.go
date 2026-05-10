@@ -109,7 +109,7 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 				if end > len(targetNodes) {
 					end = len(targetNodes)
 				}
-				// Cumulative so earlier chunks aren't absent from later ones.
+
 				chunkData, err := MarshalNodes(targetNodes[:end])
 				if err != nil {
 					return err
@@ -159,7 +159,6 @@ func addTranslationsChunked(client *api.Client, localPath, docPath, format, lang
 			return fmt.Errorf("%s: could not fetch existing translations: %w", localPath, err)
 		}
 	}
-	// With force: pass nil so all local keys are treated as new and uploaded.
 
 	chunks, newCount, err := NewKeysChunks(localPath, existing, constants.ChunkSize)
 	if err != nil {
