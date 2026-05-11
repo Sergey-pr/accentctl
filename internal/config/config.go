@@ -49,8 +49,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("could not read config file: %w\nRun 'accentctl init' to create one", err)
 	}
 
-	// Merge accent.local.* if present values here override accent.json.
-	// This file is gitignored and is the recommended place to store apiKey.
+	// Merge accent.local.* if present values here override accent.json
 	local := viper.New()
 	local.SetConfigName("accent.local")
 	local.AddConfigPath(".")
