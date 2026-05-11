@@ -12,7 +12,6 @@ type JSONObject struct {
 }
 
 // ParseJSONObject parses a JSON object preserving insertion order.
-// Returns nil (no error) if the input is not a JSON object.
 func ParseJSONObject(data []byte) (*JSONObject, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 
