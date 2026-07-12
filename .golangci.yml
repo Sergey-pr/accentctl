@@ -1,0 +1,8 @@
+version: "2"
+
+linters:
+  exclusions:
+    rules:
+      # QF1001 suggests De Morgan rewrites that hurt readability in tests.
+      - linters: [staticcheck]
+        text: "QF1001"
