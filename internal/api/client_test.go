@@ -127,6 +127,38 @@ func TestExportWritesFileAndCreatesDirs(t *testing.T) {
 	}
 }
 
+func TestExportMidStreamFailureKeepsExistingFile(t *testing.T) {
+	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		_, _ = w.Write([]byte(`{"partial`))
+	})
+
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "app.json")
+	if err := os.WriteFile(dest, []byte(`{"a":"A"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := client.Export(dest, "app", "json", "en", ExportOptions{}); err == nil {
+		t.Fatal("want error on mid-stream failure, got nil")
+	}
+	data, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"a":"A"}` {
+		t.Errorf("file content = %q, want previous content %q", data, `{"a":"A"}`)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("dir has %d entries, want 1 (no leftover temp files): %v", len(entries), entries)
+	}
+}
+
 func TestExportNotFound(t *testing.T) {
 	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

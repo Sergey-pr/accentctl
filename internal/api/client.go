@@ -205,17 +205,25 @@ func (c *Client) Export(destPath, documentPath, format, language string, opts Ex
 		return err
 	}
 
-	f, err := os.Create(destPath)
+	tmp, err := os.CreateTemp(filepath.Dir(destPath), ".accentctl-*")
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		_ = f.Close()
-	}()
-
-	_, err = io.Copy(f, resp.Body)
-	return err
+	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), destPath); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	return nil
 }
 
 func (c *Client) setAuth(req *http.Request) {

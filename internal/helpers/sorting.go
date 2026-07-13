@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"sort"
 )
 
@@ -30,7 +31,29 @@ func SortJSONFile(filePath string, desc bool) error {
 	}
 	buf.WriteByte('\n')
 
-	return os.WriteFile(filePath, buf.Bytes(), 0o644)
+	tmp, err := os.CreateTemp(filepath.Dir(filePath), ".accentctl-*")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.Write(buf.Bytes()); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), filePath); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	return nil
 }
 
 func sortRawJSON(raw json.RawMessage, desc bool) (json.RawMessage, error) {
