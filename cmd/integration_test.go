@@ -60,6 +60,7 @@ func resetFlags(t *testing.T) {
 	t.Cleanup(func() {
 		syncOrderBy = "key"
 		syncForce = false
+		syncYes = false
 		pullOrderBy = "key"
 	})
 }
@@ -177,6 +178,7 @@ func TestSyncForceDeletesThenReuploadsInChunks(t *testing.T) {
 	writeLocalFile(t, "fr", "app", pairsJSON(t, manyPairs(n, "f")))
 
 	syncForce = true
+	syncYes = true
 	if err := runSync(nil, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -219,6 +221,30 @@ func TestSyncForceDeletesThenReuploadsInChunks(t *testing.T) {
 	}
 	if got := fake.get("app", "fr", "k500"); got != "f500" {
 		t.Errorf("server fr.k500 = %q, want %q", got, "f500")
+	}
+}
+
+func TestSyncForceWithoutYesAbortsOnNonTTY(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en", "fr")
+	fake.seed("app", "en", [][2]string{{"a", "A"}})
+	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
+
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+
+	syncForce = true
+	err := runSync(nil, nil)
+	if err == nil {
+		t.Fatal("expected --force without --yes on a non-TTY to abort")
+	}
+
+	if calls := fake.callsTo("sync"); len(calls) != 0 {
+		t.Errorf("aborted --force made %d sync upload(s), want 0", len(calls))
+	}
+	if got := fake.get("app", "en", "a"); got != "A" {
+		t.Errorf("server en.a = %q, want %q (must be untouched)", got, "A")
 	}
 }
 

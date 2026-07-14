@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
@@ -31,6 +34,7 @@ for all languages.`,
 var (
 	syncOrderBy string
 	syncForce   bool
+	syncYes     bool
 )
 
 func init() {
@@ -38,12 +42,20 @@ func init() {
 		"order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
 	syncCmd.Flags().BoolVar(&syncForce,
 		"force", false, "Upload all source keys and force all translations for all languages")
+	syncCmd.Flags().BoolVar(&syncYes,
+		"yes", false, "Skip the --force confirmation prompt (for non-interactive use)")
 }
 
 func runSync(_ *cobra.Command, _ []string) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+
+	if syncForce {
+		if err := confirmForceSync(cfg); err != nil {
+			return err
+		}
 	}
 
 	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
@@ -121,6 +133,41 @@ func runSync(_ *cobra.Command, _ []string) error {
 		}
 	}
 
+	return nil
+}
+
+// confirmForceSync guards the destructive `sync --force` path, which deletes
+// every key on the server before re-uploading. It requires either the --yes
+// flag or an interactive "yes" confirmation, and aborts on a non-TTY without
+// --yes rather than silently wiping the remote project.
+func confirmForceSync(cfg *config.Config) error {
+	docCount := 0
+	for _, file := range cfg.Files {
+		sources, err := file.Sources()
+		if err != nil {
+			return err
+		}
+		docCount += len(sources)
+	}
+
+	output.Warn(fmt.Sprintf("sync --force deletes ALL keys for %d document(s) on %s before re-uploading.", docCount, cfg.APIURL))
+
+	if syncYes {
+		return nil
+	}
+
+	if !isatty.IsTerminal(os.Stdin.Fd()) && !isatty.IsCygwinTerminal(os.Stdin.Fd()) {
+		return fmt.Errorf("refusing to run destructive --force without confirmation; re-run with --yes to proceed in a non-interactive environment")
+	}
+
+	fmt.Print("Type 'yes' to continue: ")
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("reading confirmation: %w", err)
+	}
+	if answer := strings.TrimSpace(strings.ToLower(line)); answer != "y" && answer != "yes" {
+		return fmt.Errorf("aborted")
+	}
 	return nil
 }
 

@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	bold  = color.New(color.Bold)
-	green = color.New(color.FgGreen, color.Bold)
-	cyan  = color.New(color.FgCyan)
-	faint = color.New(color.Faint)
+	bold   = color.New(color.Bold)
+	green  = color.New(color.FgGreen, color.Bold)
+	cyan   = color.New(color.FgCyan)
+	faint  = color.New(color.Faint)
+	yellow = color.New(color.FgYellow, color.Bold)
 )
 
 func Section(title string) {
@@ -36,6 +37,10 @@ func FileAddTranslations(path string) {
 
 func Info(msg string) {
 	_, _ = faint.Printf("  %s\n", msg)
+}
+
+func Warn(msg string) {
+	_, _ = yellow.Printf("  %s\n", msg)
 }
 
 // ChunkProgress renders an in-place progress bar.
