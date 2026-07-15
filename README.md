@@ -101,13 +101,38 @@ then pull updated files.
 ```sh
 accentctl sync
 accentctl sync --force
+accentctl sync --translations-only
 accentctl sync --order-by key
 ```
 
-| Flag         | Default | Description                                                                   |
-|--------------|---------|-------------------------------------------------------------------------------|
-| `--force`    | false   | Deletes all server keys first, re-uploads everything, forces all translations |
-| `--order-by` | `key`   | Key order in exported files                                                   |
+| Flag                  | Default | Description                                                                   |
+|-----------------------|---------|-------------------------------------------------------------------------------|
+| `--force`             | false   | Deletes all server keys first, re-uploads everything, forces all translations |
+| `--translations-only` | false   | Pushes local translations with a passive merge; uploads no keys, deletes nothing |
+| `--yes`               | false   | Skips the `--force` confirmation prompt (for non-interactive use)             |
+| `--order-by`          | `key`   | Key order in exported files                                                   |
+
+#### Recovering an interrupted sync
+
+`sync` uploads keys first and pushes their translations second. If it dies between
+those two phases, the keys exist on Accent but their translations were never sent.
+Re-running `sync` does not fix this: Accent creates the new key in every language
+as soon as it is synced, so the new-key diff finds nothing left to do.
+
+Run this instead:
+
+```sh
+accentctl sync --translations-only
+```
+
+It uploads no keys and deletes nothing. It pushes every local translation with a
+passive merge, which fills only the strings no reviewer has corrected in Accent,
+so it is safe to re-run and will not overwrite work done in the web UI.
+
+> **Run it before any `sync` or `pull`.** Both end by pulling the server's copy over
+> your local files, and an untranslated key comes back holding the *source* text —
+> which overwrites the local translation that `--translations-only` needs to push.
+> If that already happened, recover the local files from version control first.
 
 **`--order-by` values**
 

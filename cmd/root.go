@@ -17,6 +17,9 @@ via the Accent API (https://www.accent.reviews/).
 Configuration is read from accent.json (or accent.yaml / accent.toml)
 in the current directory. The ACCENT_API_KEY and ACCENT_API_URL
 environment variables override the values in the config file.`,
+	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+		cmd.SilenceUsage = true
+	},
 }
 
 func Execute() {

@@ -30,25 +30,40 @@ type uploadCall struct {
 	KeyCount int    // number of leaf keys in the uploaded file
 }
 
+// fakeEntry is one translation: the value /export renders, plus Accent's
+// `conflicted` flag. A translation is created conflicted and stays that way
+// until a reviewer corrects it in Accent; merge_type=passive keys off this flag
+// (Movement.Comparers.MergePassive noops on `conflicted: false`), which is what
+// makes passive safe for recovery.
+//
+// Simplification: Accent tracks proposed_text and corrected_text separately and
+// passive also noops when the two have diverged. Only the reviewed/unreviewed
+// distinction is modelled here.
+type fakeEntry struct {
+	value      json.RawMessage
+	conflicted bool
+}
+
 // fakeDoc is one Accent document: an ordered key set shared by all project
-// languages, with per-language values.
+// languages, with per-language entries.
 type fakeDoc struct {
-	order []string                              // node keys in insertion order
-	langs map[string]map[string]json.RawMessage // language -> node key -> value
+	order []string                         // node keys in insertion order
+	langs map[string]map[string]*fakeEntry // language -> node key -> entry
 }
 
 // fakeAccent is an in-memory fake of the three Accent endpoints used by the
 // CLI: POST /sync, POST /add-translations, GET /export. Like the real server,
-// the key set is project-wide: adding a key via one language creates an empty
-// entry in every other project language, and removing a key removes it
-// everywhere.
+// the key set is project-wide: adding a key via one language creates an entry
+// in every other project language, and removing a key removes it everywhere.
 type fakeAccent struct {
-	t         *testing.T
-	mu        sync.Mutex
-	languages []string
-	docs      map[string]*fakeDoc
-	calls     []uploadCall
-	srv       *httptest.Server
+	t          *testing.T
+	mu         sync.Mutex
+	languages  []string
+	docs       map[string]*fakeDoc
+	calls      []uploadCall
+	srv        *httptest.Server
+	failOn     map[string]bool  // endpoint -> respond 500 instead of serving
+	onUploadFn func(uploadCall) // optional: runs after each recorded upload
 }
 
 func newFakeAccent(t *testing.T, languages ...string) *fakeAccent {
@@ -56,6 +71,7 @@ func newFakeAccent(t *testing.T, languages ...string) *fakeAccent {
 		t:         t,
 		languages: languages,
 		docs:      map[string]*fakeDoc{},
+		failOn:    map[string]bool{},
 	}
 	f.srv = httptest.NewServer(http.HandlerFunc(f.handle))
 	t.Cleanup(f.srv.Close)
@@ -64,22 +80,44 @@ func newFakeAccent(t *testing.T, languages ...string) *fakeAccent {
 
 func (f *fakeAccent) URL() string { return f.srv.URL }
 
-// seed sets a document's state directly, bypassing the endpoints. Keys are
-// added to the shared order on first sight; other languages get "" values.
+// seed sets a document's state directly, bypassing the endpoints: seeded values
+// are settled translations (not conflicted), and languages left unseeded get an
+// empty, still-conflicted placeholder. This is a low-level state setter — for
+// realistic new-key propagation, drive POST /sync instead.
 func (f *fakeAccent) seed(document, language string, pairs [][2]string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	doc := f.doc(document)
 	for _, p := range pairs {
 		key, value := p[0], p[1]
-		if _, exists := doc.langs[language][key]; !exists && !f.inOrder(doc, key) {
+		if !f.inOrder(doc, key) {
 			doc.order = append(doc.order, key)
 			for _, lang := range f.languages {
-				doc.langs[lang][key] = json.RawMessage(`""`)
+				doc.langs[lang][key] = &fakeEntry{value: json.RawMessage(`""`), conflicted: true}
 			}
 		}
-		doc.langs[language][key] = json.RawMessage(fmt.Sprintf("%q", value))
+		doc.langs[language][key] = &fakeEntry{
+			value:      json.RawMessage(fmt.Sprintf("%q", value)),
+			conflicted: false,
+		}
 	}
+}
+
+// markReviewed models a reviewer correcting a string in Accent: it sets the
+// value and clears the conflicted flag, which makes passive merges skip the key.
+func (f *fakeAccent) markReviewed(document, language, key, value string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	doc, ok := f.docs[document]
+	if !ok {
+		f.t.Fatalf("markReviewed: unknown document %q", document)
+	}
+	entry, ok := doc.langs[language][key]
+	if !ok {
+		f.t.Fatalf("markReviewed: unknown key %q for language %q", key, language)
+	}
+	entry.value = json.RawMessage(fmt.Sprintf("%q", value))
+	entry.conflicted = false
 }
 
 // get returns the decoded string value for a top-level key, or "" if absent.
@@ -90,12 +128,12 @@ func (f *fakeAccent) get(document, language, key string) string {
 	if !ok {
 		return ""
 	}
-	raw, ok := doc.langs[language][key]
+	entry, ok := doc.langs[language][key]
 	if !ok {
 		return ""
 	}
 	var s string
-	_ = json.Unmarshal(raw, &s)
+	_ = json.Unmarshal(entry.value, &s)
 	return s
 }
 
@@ -126,9 +164,9 @@ func (f *fakeAccent) callsTo(endpoint string) []uploadCall {
 func (f *fakeAccent) doc(document string) *fakeDoc {
 	doc, ok := f.docs[document]
 	if !ok {
-		doc = &fakeDoc{langs: map[string]map[string]json.RawMessage{}}
+		doc = &fakeDoc{langs: map[string]map[string]*fakeEntry{}}
 		for _, lang := range f.languages {
-			doc.langs[lang] = map[string]json.RawMessage{}
+			doc.langs[lang] = map[string]*fakeEntry{}
 		}
 		f.docs[document] = doc
 	}
@@ -144,9 +182,40 @@ func (f *fakeAccent) inOrder(doc *fakeDoc, key string) bool {
 	return false
 }
 
+// failEndpoint makes every subsequent request to the given path ("/sync",
+// "/add-translations", "/export") fail, to simulate a server or network fault
+// partway through a command.
+func (f *fakeAccent) failEndpoint(path string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failOn[path] = true
+}
+
+// onUpload registers a callback run after each recorded upload, for failing an
+// endpoint only once a command has reached a particular phase.
+func (f *fakeAccent) onUpload(fn func(uploadCall)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.onUploadFn = fn
+}
+
+// recordCall appends the call and returns any registered upload callback, to be
+// invoked by the caller once it has released the lock.
+func (f *fakeAccent) recordCall(c uploadCall) func(uploadCall) {
+	f.calls = append(f.calls, c)
+	return f.onUploadFn
+}
+
 func (f *fakeAccent) handle(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Authorization") != "Bearer "+fakeAPIKey {
 		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	f.mu.Lock()
+	shouldFail := f.failOn[r.URL.Path]
+	f.mu.Unlock()
+	if shouldFail {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	switch {
@@ -217,6 +286,11 @@ func (f *fakeAccent) handleSync(w http.ResponseWriter, r *http.Request) {
 		doc.order = kept
 	}
 
+	// Accent's ProjectSync runs the uploaded file against every language's
+	// revision, so a new key is created in all of them holding the *source*
+	// text (not an empty string), flagged conflicted until a reviewer corrects
+	// it. Movement.Migration.Translation.call(:new, ...) sets
+	// `conflicted: is_nil(version_id)`, and accentctl never sends a version.
 	for _, n := range nodes {
 		k := helpers.NodeKey(n.Path)
 		if f.inOrder(doc, k) {
@@ -224,20 +298,20 @@ func (f *fakeAccent) handleSync(w http.ResponseWriter, r *http.Request) {
 		}
 		doc.order = append(doc.order, k)
 		for _, lang := range f.languages {
-			if lang == language {
-				doc.langs[lang][k] = n.Value
-			} else {
-				doc.langs[lang][k] = json.RawMessage(`""`)
-			}
+			doc.langs[lang][k] = &fakeEntry{value: n.Value, conflicted: true}
 		}
 	}
 
-	f.calls = append(f.calls, uploadCall{
+	call := uploadCall{
 		Endpoint: "sync", Document: document, Language: language,
 		Mode: syncType, KeyCount: len(nodes),
-	})
+	}
+	hook := f.recordCall(call)
 	f.mu.Unlock()
 
+	if hook != nil {
+		hook(call)
+	}
 	writePeekResult(w)
 }
 
@@ -263,24 +337,31 @@ func (f *fakeAccent) handleAddTranslations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// A merge never creates or removes keys: Movement.Builders.RevisionMerge
+	// runs EntriesCommitProcessor.process/1 only (no process_for_remove/1), and
+	// MergePassive/MergeForce both noop on a nil translation.
 	for _, n := range nodes {
 		k := helpers.NodeKey(n.Path)
-		current, exists := values[k]
+		entry, exists := values[k]
 		if !exists {
 			continue
 		}
-		if mergeType == "passive" && string(current) != `""` {
+		if mergeType == "passive" && !entry.conflicted {
 			continue
 		}
-		values[k] = n.Value
+		entry.value = n.Value
 	}
 
-	f.calls = append(f.calls, uploadCall{
+	call := uploadCall{
 		Endpoint: "add-translations", Document: document, Language: language,
 		Mode: mergeType, KeyCount: len(nodes),
-	})
+	}
+	hook := f.recordCall(call)
 	f.mu.Unlock()
 
+	if hook != nil {
+		hook(call)
+	}
 	writePeekResult(w)
 }
 
@@ -315,7 +396,7 @@ func (f *fakeAccent) handleExport(w http.ResponseWriter, r *http.Request) {
 	for _, k := range order {
 		nodes = append(nodes, helpers.NodeEntry{
 			Path:  strings.Split(k, "\x00"),
-			Value: values[k],
+			Value: values[k].value,
 		})
 	}
 	data, err := helpers.MarshalNodes(nodes)
