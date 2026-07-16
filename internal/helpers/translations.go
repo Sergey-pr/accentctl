@@ -35,7 +35,7 @@ func AddTranslationsFile(client *api.Client, file config.File, mergeType string,
 		}
 		for _, src := range sources {
 			docPath := DocumentName(src)
-			localPath := ApplyTargetTemplate(file.Target, slug, docPath)
+			localPath := ApplyTargetTemplate(file.Target, slug, src)
 			if _, err := os.Stat(localPath); err != nil {
 				continue
 			}
@@ -77,18 +77,14 @@ func AddAllTranslations(client *api.Client, file config.File, mergeType string, 
 		}
 		for _, src := range sources {
 			docPath := DocumentName(src)
-			localPath := ApplyTargetTemplate(file.Target, slug, docPath)
+			localPath := ApplyTargetTemplate(file.Target, slug, src)
 			if _, err := os.Stat(localPath); err != nil {
 				continue
 			}
 
-			data, err := os.ReadFile(localPath)
+			obj, err := ReadJSONObjectFile(localPath)
 			if err != nil {
-				return fmt.Errorf("%s: %w", localPath, err)
-			}
-			obj, err := ParseJSONObject(data)
-			if err != nil || obj == nil {
-				continue
+				return err
 			}
 			nodes := CollectNodes(obj, nil)
 			if len(nodes) == 0 {
@@ -179,18 +175,14 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 		}
 		for _, src := range sources {
 			docPath := DocumentName(src)
-			localPath := ApplyTargetTemplate(file.Target, slug, docPath)
+			localPath := ApplyTargetTemplate(file.Target, slug, src)
 			if _, err := os.Stat(localPath); err != nil {
 				continue
 			}
 
-			data, err := os.ReadFile(localPath)
+			obj, err := ReadJSONObjectFile(localPath)
 			if err != nil {
-				return fmt.Errorf("%s: %w", localPath, err)
-			}
-			obj, err := ParseJSONObject(data)
-			if err != nil || obj == nil {
-				continue
+				return err
 			}
 
 			// Keep only nodes whose path is in the new-key set.

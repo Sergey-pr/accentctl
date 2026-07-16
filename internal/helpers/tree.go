@@ -91,12 +91,8 @@ func MarshalNodes(nodes []NodeEntry) ([]byte, error) {
 
 // NewKeysChunksWithNodes compares the local source file against server data
 func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int) (paths []string, newNodes []NodeEntry, err error) {
-	localData, err := os.ReadFile(localPath)
+	localObj, err := ReadJSONObjectFile(localPath)
 	if err != nil {
-		return nil, nil, err
-	}
-	localObj, err := ParseJSONObject(localData)
-	if err != nil || localObj == nil {
 		return nil, nil, err
 	}
 

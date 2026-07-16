@@ -26,6 +26,10 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if err := requireJSONFormat(cfg, "status"); err != nil {
+		return err
+	}
+
 	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
 	output.Section("Status")
 
@@ -68,7 +72,7 @@ func runStatus(_ *cobra.Command, _ []string) error {
 			}
 			for _, src := range sources {
 				docPath := helpers.DocumentName(src)
-				localPath := helpers.ApplyTargetTemplate(file.Target, slug, docPath)
+				localPath := helpers.ApplyTargetTemplate(file.Target, slug, src)
 				if _, err := os.Stat(localPath); err != nil {
 					continue
 				}
@@ -94,24 +98,14 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 		return 0, 0, fmt.Errorf("%s: %w", localPath, err)
 	}
 
-	localData, err := os.ReadFile(localPath)
+	localObj, err := helpers.ReadJSONObjectFile(localPath)
 	if err != nil {
-		return 0, 0, fmt.Errorf("%s: %w", localPath, err)
+		return 0, 0, err
 	}
-
-	localObj, err := helpers.ParseJSONObject(localData)
-	if err != nil {
-		output.Info(fmt.Sprintf("%s: skipping malformed JSON: %v", localPath, err))
-		return 0, 0, nil
-	}
-	var localSet map[string]bool
-	var localNodes []helpers.NodeEntry
-	if localObj != nil {
-		localNodes = helpers.CollectNodes(localObj, nil)
-		localSet = make(map[string]bool, len(localNodes))
-		for _, l := range localNodes {
-			localSet[helpers.NodeKey(l.Path)] = true
-		}
+	localNodes := helpers.CollectNodes(localObj, nil)
+	localSet := make(map[string]bool, len(localNodes))
+	for _, l := range localNodes {
+		localSet[helpers.NodeKey(l.Path)] = true
 	}
 
 	accentSet := map[string]bool{}

@@ -27,38 +27,57 @@ func TestDocumentName(t *testing.T) {
 
 func TestApplyTargetTemplate(t *testing.T) {
 	tests := []struct {
+		name     string
 		target   string
 		language string
-		docPath  string
+		src      string
 		want     string
 	}{
 		{
+			"original file name keeps the source extension",
 			"locales/%slug%/%original_file_name%",
-			"fr", "common",
+			"fr", "locales/en/common.json",
 			"locales/fr/common.json",
 		},
 		{
+			"a non-json source keeps its own extension",
+			"locales/%slug%/%original_file_name%",
+			"fr", "locales/en/common.yaml",
+			"locales/fr/common.yaml",
+		},
+		{
+			"document path drops the extension",
 			"locales/%slug%/%document_path%",
-			"de", "common",
+			"de", "locales/en/common.json",
 			"locales/de/common",
 		},
 		{
+			"target without placeholders beyond slug",
 			"%slug%/translations.json",
-			"es", "translations",
+			"es", "locales/en/translations.json",
 			"es/translations.json",
 		},
 		{
+			"multi-part extension keeps only the last segment as ext",
 			"locales/%slug%/%original_file_name%",
-			"en", "messages",
-			"locales/en/messages.json",
+			"en", "locales/en/messages.en.json",
+			"locales/en/messages.en.json",
+		},
+		{
+			"source without an extension",
+			"locales/%slug%/%original_file_name%",
+			"en", "locales/en/messages",
+			"locales/en/messages",
 		},
 	}
 	for _, tt := range tests {
-		got := ApplyTargetTemplate(tt.target, tt.language, tt.docPath)
-		if got != tt.want {
-			t.Errorf("ApplyTargetTemplate(%q, %q, %q) = %q, want %q",
-				tt.target, tt.language, tt.docPath, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			got := ApplyTargetTemplate(tt.target, tt.language, tt.src)
+			if got != tt.want {
+				t.Errorf("ApplyTargetTemplate(%q, %q, %q) = %q, want %q",
+					tt.target, tt.language, tt.src, got, tt.want)
+			}
+		})
 	}
 }
 

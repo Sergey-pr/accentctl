@@ -37,7 +37,18 @@ Create an `accent.json` file in your project root (or run `accentctl init`):
 }
 ```
 
-YAML and TOML are also supported (`accent.yaml`, `accent.toml`).
+The config file itself may also be YAML or TOML (`accent.yaml`, `accent.toml`).
+
+### A note on `format`
+
+`format` is the format of your **localization** files, and it is passed through to
+Accent on every request. Only `pull` is format-agnostic — it streams whatever Accent
+returns straight to disk.
+
+`sync`, `cleanup` and `status` **support `"json"` only**: they read your local files
+with a JSON parser to diff keys against the server. Configuring any other format makes
+those three fail immediately with a clear message rather than a confusing parse error.
+If you need them for another format, please open an issue.
 
 ### Keeping your API key out of version control
 
@@ -56,10 +67,11 @@ command also prompts for an API key and saves it to `accent.local.json` automati
 
 ### Target template placeholders
 
-| Placeholder            | Description                     |
-|------------------------|---------------------------------|
-| `%slug%`               | Language slug (e.g. `fr`, `de`) |
-| `%original_file_name%` | Source filename with extension  |
+| Placeholder            | Description                        |
+|------------------------|------------------------------------|
+| `%slug%`               | Language slug (e.g. `fr`, `de`)    |
+| `%original_file_name%` | Source filename with extension     |
+| `%document_path%`      | Source filename without extension  |
 
 ### Hooks
 

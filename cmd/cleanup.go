@@ -29,6 +29,10 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if err := requireJSONFormat(cfg, "cleanup"); err != nil {
+		return err
+	}
+
 	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
 	output.Section("Cleaning up")
 
@@ -73,14 +77,9 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 		return fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
 	}
 
-	localData, err := os.ReadFile(src)
+	localObj, err := helpers.ReadJSONObjectFile(src)
 	if err != nil {
-		return fmt.Errorf("%s: %w", src, err)
-	}
-
-	localObj, err := helpers.ParseJSONObject(localData)
-	if err != nil || localObj == nil {
-		return fmt.Errorf("%s: not a JSON object", src)
+		return err
 	}
 	localNodes := helpers.CollectNodes(localObj, nil)
 

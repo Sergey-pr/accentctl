@@ -16,13 +16,19 @@ func DocumentName(filePath string) string {
 	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
-// ApplyTargetTemplate replaces placeholders in the target pattern.
+// ApplyTargetTemplate replaces placeholders in the target pattern, deriving
+// them from the source file path.
 // Supported placeholders: %slug%, %document_path%, %original_file_name%.
-func ApplyTargetTemplate(target, language, docPath string) string {
+//
+// %original_file_name% keeps the source file's own extension, so a .yaml source
+// yields a .yaml target. Only pull can act on a non-JSON format, but its target
+// paths have to be right for it to write them to the correct place.
+func ApplyTargetTemplate(target, language, src string) string {
+	base := filepath.Base(src)
 	r := strings.NewReplacer(
 		"%slug%", language,
-		"%document_path%", docPath,
-		"%original_file_name%", docPath+".json",
+		"%document_path%", DocumentName(src),
+		"%original_file_name%", base,
 	)
 	return r.Replace(target)
 }

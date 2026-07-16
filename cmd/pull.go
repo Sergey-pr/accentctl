@@ -69,7 +69,7 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 	for _, slug := range slugs {
 		for _, src := range sources {
 			docPath := helpers.DocumentName(src)
-			targetPath := helpers.ApplyTargetTemplate(file.Target, slug, docPath)
+			targetPath := helpers.ApplyTargetTemplate(file.Target, slug, src)
 			err := client.Export(targetPath, docPath, file.Format, slug, opts)
 			if errors.Is(err, api.ErrNotFound) {
 				continue

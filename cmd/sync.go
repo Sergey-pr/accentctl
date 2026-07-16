@@ -62,6 +62,10 @@ func runSync(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if err := requireJSONFormat(cfg, "sync"); err != nil {
+		return err
+	}
+
 	if syncForce && syncTranslationsOnly {
 		return fmt.Errorf("--force and --translations-only are mutually exclusive: --force re-uploads and overwrites everything, --translations-only changes no keys and overwrites no reviewed translations")
 	}

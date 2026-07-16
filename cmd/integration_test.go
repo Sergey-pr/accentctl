@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/sergey-pr/accentctl/internal/api"
 )
 
@@ -18,6 +20,11 @@ import (
 // localization/%slug%/%original_file_name%.
 func setupProject(t *testing.T, apiURL string) {
 	t.Helper()
+	setupProjectWithFormat(t, apiURL, "json")
+}
+
+func setupProjectWithFormat(t *testing.T, apiURL, format string) {
+	t.Helper()
 	dir := t.TempDir()
 	t.Chdir(dir)
 
@@ -25,11 +32,11 @@ func setupProject(t *testing.T, apiURL string) {
   "apiUrl": %q,
   "apiKey": %q,
   "files": [{
-    "format": "json",
+    "format": %q,
     "source": "localization/en/*.json",
     "target": "localization/%%slug%%/%%original_file_name%%"
   }]
-}`, apiURL, fakeAPIKey)
+}`, apiURL, fakeAPIKey, format)
 	if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +112,102 @@ func keyCounts(calls []uploadCall) []int {
 		out = append(out, c.KeyCount)
 	}
 	return out
+}
+
+// The JSON-only commands must reject a non-JSON format before touching the
+// network, rather than failing later inside a JSON parser.
+func TestNonJSONFormatFailsFastOnJSONOnlyCommands(t *testing.T) {
+	commands := map[string]func(*cobra.Command, []string) error{
+		"sync":    runSync,
+		"cleanup": runCleanup,
+		"status":  runStatus,
+	}
+	for name, run := range commands {
+		t.Run(name, func(t *testing.T) {
+			resetFlags(t)
+			fake := newFakeAccent(t, "en", "fr")
+			setupProjectWithFormat(t, fake.URL(), "yaml")
+			writeLocalFile(t, "en", "app", `{"a":"A"}`)
+			writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+
+			err := run(nil, nil)
+			if err == nil {
+				t.Fatalf("%s with format yaml succeeded, want a clear error", name)
+			}
+			for _, want := range []string{name, `"json"`, `"yaml"`, "pull"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error = %q, want it to mention %s", err, want)
+				}
+			}
+			if calls := len(fake.callsTo("sync")) + len(fake.callsTo("add-translations")); calls != 0 {
+				t.Errorf("%s made %d upload(s) before failing, want 0", name, calls)
+			}
+		})
+	}
+}
+
+func TestJSONFormatAndUnsetFormatAreAccepted(t *testing.T) {
+	for _, format := range []string{"json", ""} {
+		t.Run("format="+format, func(t *testing.T) {
+			resetFlags(t)
+			fake := newFakeAccent(t, "en", "fr")
+			fake.seed("app", "en", [][2]string{{"a", "A"}})
+			fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
+			setupProjectWithFormat(t, fake.URL(), format)
+			writeLocalFile(t, "en", "app", `{"a":"A"}`)
+			writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+
+			if err := runStatus(nil, nil); err != nil {
+				t.Errorf("status with format %q failed: %v", format, err)
+			}
+		})
+	}
+}
+
+// A local file that is valid JSON but not an object used to be handled three
+// different ways; every command must now name the file and stop.
+func TestNonObjectLocalFileIsRejectedConsistently(t *testing.T) {
+	commands := map[string]func(*cobra.Command, []string) error{
+		"sync":    runSync,
+		"cleanup": runCleanup,
+		"status":  runStatus,
+	}
+	for name, run := range commands {
+		t.Run(name, func(t *testing.T) {
+			resetFlags(t)
+			fake := newFakeAccent(t, "en", "fr")
+			fake.seed("app", "en", [][2]string{{"a", "A"}})
+			setupProject(t, fake.URL())
+			writeLocalFile(t, "en", "app", `["a","b"]`)
+
+			err := run(nil, nil)
+			if err == nil {
+				t.Fatalf("%s on a top-level JSON array succeeded, want an error", name)
+			}
+			if !strings.Contains(err.Error(), "not a JSON object") {
+				t.Errorf("error = %q, want it to say the file is not a JSON object", err)
+			}
+			if !strings.Contains(err.Error(), filepath.Join("localization", "en", "app.json")) {
+				t.Errorf("error = %q, want it to name the offending file", err)
+			}
+		})
+	}
+}
+
+func TestMalformedLocalFileIsRejected(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en", "fr")
+	fake.seed("app", "en", [][2]string{{"a", "A"}})
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a": `)
+
+	err := runSync(nil, nil)
+	if err == nil {
+		t.Fatal("sync on malformed JSON succeeded, want an error")
+	}
+	if !strings.Contains(err.Error(), "invalid JSON") {
+		t.Errorf("error = %q, want it to say the JSON is invalid", err)
+	}
 }
 
 func TestSyncPushesNewKeysAndTheirTranslations(t *testing.T) {
