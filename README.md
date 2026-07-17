@@ -77,6 +77,20 @@ command also prompts for an API key and saves it to `accent.local.json` automati
 
 Shell commands to run around `accentctl sync` or `accentctl pull`. Defined per file entry in the config.
 
+Hooks run through `sh -c` on macOS and Linux, and through `cmd /c` on Windows. They
+run in sequence, and the first one to exit non-zero aborts the command.
+
+> **Hooks run arbitrary shell commands from `accent.json`.** That is the point of the
+> feature, but it means the config is executable content: treat an `accent.json` from an
+> untrusted repository the same way you would treat its `Makefile` or npm `postinstall`
+> script, and read it before running `accentctl` inside that project.
+
+> **On Windows, avoid double quotes inside a hook.** `cmd /c` uses different quoting
+> rules from the ones Go applies when building the command line, so a hook like
+> `prettier --write "loc/**/*.json"` reaches the program with the quotes escaped as
+> `\"`. Unquoted hooks (`prettier --write loc/`) and hooks that delegate to a script or
+> task runner (`npm run format`) work fine.
+
 | Hook          | Command  | When it runs                                  |
 |---------------|----------|-----------------------------------------------|
 | `beforeSync`  | `sync`   | Before uploading source keys                  |
