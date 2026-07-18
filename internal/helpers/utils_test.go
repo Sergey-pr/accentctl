@@ -116,10 +116,7 @@ func TestLanguageFromPath_documentPathPlaceholder(t *testing.T) {
 // --- LanguageSlugsFromFilesystem ---
 
 func TestLanguageSlugsFromFilesystem(t *testing.T) {
-	// Build a temp dir tree:
-	//   locales/en/common.json
-	//   locales/fr/common.json
-	//   locales/de/common.json
+	// Builds locales/{en,fr,de}/common.json in a temp dir.
 	dir := t.TempDir()
 	for _, lang := range []string{"en", "fr", "de"} {
 		langDir := filepath.Join(dir, "locales", lang)

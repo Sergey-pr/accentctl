@@ -13,7 +13,7 @@ var verbose bool
 
 var root = &cobra.Command{
 	Use:   "accentctl",
-	Short: "A CLI tool for Accent- the translation management platform",
+	Short: "A CLI tool for Accent, the translation management platform",
 	Long: `accentctl lets you sync, pull, and manage translations
 via the Accent API (https://www.accent.reviews/).
 
@@ -31,14 +31,8 @@ func Execute() {
 	}
 }
 
-// requireJSONFormat rejects configs that sync, cleanup and status cannot
-// honour. All three read local files with a JSON parser regardless of the
-// configured format, so anything else would fail later with a parse error that
-// says nothing about the real cause. Only pull is format-agnostic: it streams
-// bytes to disk without inspecting them.
-//
-// An unset format is left alone: it is not a claim that the tool is about to
-// break, and the commands already treat those files as JSON.
+// requireJSONFormat rejects configs that sync, cleanup and status cannot honour:
+// they parse local files as JSON whatever the configured format, and only pull streams bytes untouched.
 func requireJSONFormat(cfg *config.Config, command string) error {
 	for _, file := range cfg.Files {
 		if file.Format != "" && file.Format != "json" {

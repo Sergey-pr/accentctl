@@ -14,10 +14,7 @@ type JSONObject struct {
 }
 
 // ReadJSONObjectFile reads a localization file and parses it as a JSON object.
-//
-// Unlike ParseJSONObject it treats "valid JSON, but not an object" as an error:
-// a top-level array or string is a broken localization file, and every caller
-// that reads one from disk wants to say so rather than quietly process no keys.
+// Valid JSON that is not an object counts as an error: the file is broken and callers want to say so.
 func ReadJSONObjectFile(path string) (*JSONObject, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -33,12 +30,8 @@ func ReadJSONObjectFile(path string) (*JSONObject, error) {
 	return obj, nil
 }
 
-// ParseJSONObject parses a JSON object preserving insertion order.
-//
-// A nil object with a nil error means the data is valid JSON that is not an
-// object. CollectNodes relies on that signal to tell a nested object from a
-// leaf value, so it must not become an error here; callers reading whole files
-// from disk should use ReadJSONObjectFile instead.
+// ParseJSONObject parses a JSON object preserving insertion order. It returns
+// (nil, nil) for valid JSON that is not an object; CollectNodes uses that to tell nested objects from leaves.
 func ParseJSONObject(data []byte) (*JSONObject, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 

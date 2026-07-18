@@ -1,6 +1,6 @@
 # accentctl
 
-A CLI tool for [Accent](https://www.accent.reviews/) the open-source translations management platform.
+A CLI tool for [Accent](https://www.accent.reviews/), the open-source translation management platform.
 
 ## Install
 
@@ -14,11 +14,11 @@ brew install sergey-pr/tap/accentctl
 go install github.com/sergey-pr/accentctl@latest
 ```
 
-**Download** grab a pre-built binary from the [releases page](https://github.com/sergey-pr/accentctl/releases).
+**Binary**: grab a pre-built one from the [releases page](https://github.com/sergey-pr/accentctl/releases).
 
 ## Configuration
 
-Create an `accent.json` file in your project root (or run `accentctl init`):
+Create an `accent.json` file in your project root, or run `accentctl init`:
 
 ```json
 {
@@ -42,7 +42,7 @@ The config file itself may also be YAML or TOML (`accent.yaml`, `accent.toml`).
 ### A note on `format`
 
 `format` is the format of your **localization** files, and it is passed through to
-Accent on every request. Only `pull` is format-agnostic — it streams whatever Accent
+Accent on every request. Only `pull` is format-agnostic: it streams whatever Accent
 returns straight to disk.
 
 `sync`, `cleanup` and `status` **support `"json"` only**: they read your local files
@@ -52,14 +52,15 @@ If you need them for another format, please open an issue.
 
 ### Keeping your API key out of version control
 
-Run this once per project to save the key to `accent.local.json` which should be gitignored:
+Run this once per project to save the key to `accent.local.json`, which should be gitignored:
 
 ```sh
 accentctl key set your-api-key
 ```
 
-You can commit `accent.json` without any secrets. The local file overrides `accent.json` values. The `init` 
-command also prompts for an API key and saves it to `accent.local.json` automatically.
+You can commit `accent.json` without any secrets. Values in the local file override
+`accent.json`. The `init` command also prompts for an API key and saves it to
+`accent.local.json` automatically.
 
 **Environment variables** override both config files:
 - `ACCENT_API_KEY`
@@ -75,10 +76,10 @@ command also prompts for an API key and saves it to `accent.local.json` automati
 
 ### Hooks
 
-Shell commands to run around `accentctl sync` or `accentctl pull`. Defined per file entry in the config.
-
-Hooks run through `sh -c` on macOS and Linux, and through `cmd /c` on Windows. They
-run in sequence, and the first one to exit non-zero aborts the command.
+Shell commands that run around `accentctl sync` or `accentctl pull`, defined per file
+entry in the config. Hooks run through `sh -c` on macOS and Linux, and through
+`cmd /c` on Windows. They run in sequence, and the first one to exit non-zero aborts
+the command.
 
 > **Hooks run arbitrary shell commands from `accent.json`.** That is the point of the
 > feature, but it means the config is executable content: treat an `accent.json` from an
@@ -121,8 +122,8 @@ run in sequence, and the first one to exit non-zero aborts the command.
 
 ### `accentctl sync`
 
-Uploads new source keys to Accent in chunks, then force-push translations for those new keys to all target languages, 
-then pull updated files.
+Uploads new source keys to Accent in chunks, force-pushes translations for those
+new keys to all target languages, then pulls the updated files back.
 
 ```sh
 accentctl sync
@@ -131,12 +132,23 @@ accentctl sync --translations-only
 accentctl sync --order-by key
 ```
 
-| Flag                  | Default | Description                                                                   |
-|-----------------------|---------|-------------------------------------------------------------------------------|
-| `--force`             | false   | Deletes all server keys first, re-uploads everything, forces all translations |
+| Flag                  | Default | Description                                                                      |
+|-----------------------|---------|----------------------------------------------------------------------------------|
+| `--force`             | false   | Deletes all server keys first, re-uploads everything, forces all translations    |
 | `--translations-only` | false   | Pushes local translations with a passive merge; uploads no keys, deletes nothing |
-| `--yes`               | false   | Skips the `--force` confirmation prompt (for non-interactive use)             |
-| `--order-by`          | `key`   | Key order in exported files                                                   |
+| `--yes`               | false   | Skips the `--force` confirmation prompt (for non-interactive use)                |
+| `--order-by`          | `key`   | Key order in exported files                                                      |
+
+**`--order-by` values** (shared with `pull`)
+
+| Value      | Behaviour               |
+|------------|-------------------------|
+| `index`    | File insertion order    |
+| `-index`   | Reverse insertion order |
+| `key`      | Alphabetical ascending  |
+| `-key`     | Alphabetical descending |
+| `updated`  | Last updated ascending  |
+| `-updated` | Last updated descending |
 
 #### Recovering an interrupted sync
 
@@ -156,44 +168,26 @@ passive merge, which fills only the strings no reviewer has corrected in Accent,
 so it is safe to re-run and will not overwrite work done in the web UI.
 
 > **Run it before any `sync` or `pull`.** Both end by pulling the server's copy over
-> your local files, and an untranslated key comes back holding the *source* text —
+> your local files, and an untranslated key comes back holding the *source* text,
 > which overwrites the local translation that `--translations-only` needs to push.
 > If that already happened, recover the local files from version control first.
 
-**`--order-by` values**
-
-| Value      | Behaviour               |
-|------------|-------------------------|
-| `index`    | File insertion order    |
-| `-index`   | Reverse insertion order |
-| `key`      | Alphabetical ascending  |
-| `-key`     | Alphabetical descending |
-| `updated`  | Last updated ascending  |
-| `-updated` | Last updated descending |
-
 ### `accentctl pull`
 
-Downloads translations from Accent and write them to your local filesystem.
+Downloads translations from Accent and writes them to your local filesystem.
 
 ```sh
 accentctl pull
 accentctl pull --order-by -key
 ```
 
-| Flag         | Default | Description                  |
-|--------------|---------|------------------------------|
-| `--order-by` | `key`   | Key order in exported files  |
+| Flag         | Default | Description                                    |
+|--------------|---------|------------------------------------------------|
+| `--order-by` | `key`   | Key order in exported files (values as `sync`) |
 
-**`--order-by` values**
-
-| Value      | Behaviour               |
-|------------|-------------------------|
-| `index`    | File insertion order    |
-| `-index`   | Reverse insertion order |
-| `key`      | Alphabetical ascending  |
-| `-key`     | Alphabetical descending |
-| `updated`  | Last updated ascending  |
-| `-updated` | Last updated descending |
+Languages are discovered from your local filesystem: `pull` only fetches a language
+that already has a matching local file. To start tracking a language added on the
+Accent side, create its file first, e.g. an empty `{}` at `localization/de/app.json`.
 
 ### `accentctl cleanup`
 
@@ -236,7 +230,7 @@ accentctl key set your-api-key
 | **Single binary**         | Requires Node.js runtime                                              | Zero dependencies, single static binary                        |
 | **`key` ordering**        | Not working with nested keys                                          | Client-side recursive JSON sort works for flat and nested keys |
 | **Large file support**    | Uploads translations in one batch (can cause memory issues on server) | Uploads translations in chunks                                 |
-| **Environment variables** | Api key and host are saved in config.json file                        | Can set api key and host to environment variables              |
+| **Environment variables** | API key and host live in the config file only                         | `ACCENT_API_KEY` / `ACCENT_API_URL` override the config        |
 
 ## Shell completions
 
@@ -253,4 +247,4 @@ accentctl completion fish > ~/.config/fish/completions/accentctl.fish
 
 ## License
 
-MIT see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

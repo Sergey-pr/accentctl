@@ -3,6 +3,7 @@ package helpers
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -34,9 +35,9 @@ func TestSortJSONFile_ascendingFlat(t *testing.T) {
 
 	// Verify key order in raw output.
 	raw := string(out)
-	posA := indexOf(raw, `"a"`)
-	posM := indexOf(raw, `"m"`)
-	posZ := indexOf(raw, `"z"`)
+	posA := strings.Index(raw, `"a"`)
+	posM := strings.Index(raw, `"m"`)
+	posZ := strings.Index(raw, `"z"`)
 	if !(posA < posM && posM < posZ) {
 		t.Errorf("keys not in ascending order in output:\n%s", out)
 	}
@@ -46,9 +47,9 @@ func TestSortJSONFile_descendingFlat(t *testing.T) {
 	out := runSortJSONFile(t, `{"a":"1","m":"2","z":"3"}`, true)
 
 	raw := string(out)
-	posA := indexOf(raw, `"a"`)
-	posM := indexOf(raw, `"m"`)
-	posZ := indexOf(raw, `"z"`)
+	posA := strings.Index(raw, `"a"`)
+	posM := strings.Index(raw, `"m"`)
+	posZ := strings.Index(raw, `"z"`)
 	if !(posZ < posM && posM < posA) {
 		t.Errorf("keys not in descending order in output:\n%s", out)
 	}
@@ -59,14 +60,14 @@ func TestSortJSONFile_nested(t *testing.T) {
 
 	raw := string(out)
 	// Top-level: "a" before "b"
-	posTopA := indexOf(raw, `"a": "3"`)
-	posTopB := indexOf(raw, `"b"`)
+	posTopA := strings.Index(raw, `"a": "3"`)
+	posTopB := strings.Index(raw, `"b"`)
 	if !(posTopA < posTopB) {
 		t.Errorf("top-level keys not sorted:\n%s", out)
 	}
 	// Nested: "a" before "z"
-	posNestedA := indexOf(raw, `"a": "2"`)
-	posNestedZ := indexOf(raw, `"z"`)
+	posNestedA := strings.Index(raw, `"a": "2"`)
+	posNestedZ := strings.Index(raw, `"z"`)
 	if !(posNestedA < posNestedZ) {
 		t.Errorf("nested keys not sorted:\n%s", out)
 	}
@@ -104,25 +105,7 @@ func TestSortJSONFile_invalidJSONSkipped(t *testing.T) {
 func TestSortJSONFile_writesIndented(t *testing.T) {
 	out := runSortJSONFile(t, `{"a":"1","b":"2"}`, false)
 	// Output should be indented (contains newlines).
-	if !containsNewline(string(out)) {
+	if !strings.Contains(string(out), "\n") {
 		t.Errorf("expected indented output, got: %s", out)
 	}
-}
-
-func indexOf(s, substr string) int {
-	for i := range s {
-		if len(s[i:]) >= len(substr) && s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
-}
-
-func containsNewline(s string) bool {
-	for _, c := range s {
-		if c == '\n' {
-			return true
-		}
-	}
-	return false
 }

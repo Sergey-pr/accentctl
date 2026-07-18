@@ -3,9 +3,10 @@ package helpers
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 )
 
 // SortJSONFile reads a JSON file, sorts all object keys recursively, and writes it back.
@@ -59,13 +60,9 @@ func SortJSONFile(filePath string, desc bool) error {
 func sortRawJSON(raw json.RawMessage, desc bool) (json.RawMessage, error) {
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &obj); err == nil {
-		keys := make([]string, 0, len(obj))
-		for k := range obj {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(obj))
 		if desc {
-			sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+			slices.Reverse(keys)
 		}
 
 		var buf bytes.Buffer

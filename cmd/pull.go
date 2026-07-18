@@ -90,13 +90,8 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 	return nil
 }
 
-// hookShell returns the shell and its "run this string" flag for the given
-// GOOS. Windows has no sh, so hooks there run through cmd.exe: goreleaser ships
-// Windows binaries, and hardcoding sh made every hook fail with
-// `exec: "sh": file not found`.
-//
-// It takes the GOOS rather than reading runtime.GOOS so both branches are
-// testable from any platform.
+// hookShell returns the shell that runs hook strings on the given GOOS. Windows
+// has no sh, so hooks go through cmd.exe there; taking goos as a parameter keeps both branches testable anywhere.
 func hookShell(goos string) (shell, flag string) {
 	if goos == "windows" {
 		return "cmd", "/c"

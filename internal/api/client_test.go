@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/sergey-pr/accentctl/internal/constants"
@@ -124,6 +125,29 @@ func TestExportWritesFileAndCreatesDirs(t *testing.T) {
 	}
 	if string(data) != `{"a":"A"}` {
 		t.Errorf("file content = %q, want %q", data, `{"a":"A"}`)
+	}
+}
+
+// Export goes through a CreateTemp file (0600), which must not leak into the
+// final file's permissions.
+func TestExportWritesWorldReadableFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file modes are not meaningful on Windows")
+	}
+	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"a":"A"}`))
+	})
+
+	dest := filepath.Join(t.TempDir(), "app.json")
+	if err := client.Export(dest, "app", "json", "en", ExportOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Errorf("file mode = %o, want 644", got)
 	}
 }
 

@@ -139,21 +139,28 @@ func (c *Client) AddTranslations(filePath, documentPath, format, language string
 	return c.postOperation(endpoint, body, contentType)
 }
 
-// ExportBytes fetches a translated file from Accent and returns its raw contents.
-// Returns (nil, nil) when the document/language does not exist (HTTP 404).
-func (c *Client) ExportBytes(documentPath, format, language string) ([]byte, error) {
+// exportRequest performs GET /export and returns the raw response.
+func (c *Client) exportRequest(documentPath, format, language, orderBy string) (*http.Response, error) {
 	q := url.Values{}
 	q.Set("document_path", documentPath)
 	q.Set("document_format", format)
 	q.Set("language", language)
+	if orderBy != "" {
+		q.Set("order_by", orderBy)
+	}
 
 	req, err := http.NewRequest(http.MethodGet, c.apiURL+"/export?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
 	c.setAuth(req)
+	return c.http.Do(req)
+}
 
-	resp, err := c.http.Do(req)
+// ExportBytes fetches a translated file from Accent and returns its raw contents.
+// Returns (nil, nil) when the document/language does not exist (HTTP 404).
+func (c *Client) ExportBytes(documentPath, format, language string) ([]byte, error) {
+	resp, err := c.exportRequest(documentPath, format, language, "")
 	if err != nil {
 		return nil, err
 	}
@@ -172,21 +179,7 @@ func (c *Client) ExportBytes(documentPath, format, language string) ([]byte, err
 
 // Export downloads a translated file from Accent and writes it to destPath.
 func (c *Client) Export(destPath, documentPath, format, language string, opts ExportOptions) error {
-	q := url.Values{}
-	q.Set("document_path", documentPath)
-	q.Set("document_format", format)
-	q.Set("language", language)
-	if opts.OrderBy != "" {
-		q.Set("order_by", opts.OrderBy)
-	}
-
-	req, err := http.NewRequest(http.MethodGet, c.apiURL+"/export?"+q.Encode(), nil)
-	if err != nil {
-		return err
-	}
-	c.setAuth(req)
-
-	resp, err := c.http.Do(req)
+	resp, err := c.exportRequest(documentPath, format, language, opts.OrderBy)
 	if err != nil {
 		return err
 	}
@@ -204,13 +197,23 @@ func (c *Client) Export(destPath, documentPath, format, language string, opts Ex
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return err
 	}
+	return writeFileAtomic(destPath, resp.Body)
+}
 
+// writeFileAtomic streams r into a same-directory temp file and renames it over
+// destPath, so a failed download never truncates the existing file.
+func writeFileAtomic(destPath string, r io.Reader) error {
 	tmp, err := os.CreateTemp(filepath.Dir(destPath), ".accentctl-*")
 	if err != nil {
 		return err
 	}
-
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
+	if _, err := io.Copy(tmp, r); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	// CreateTemp files are 0600; pulled files should stay world-readable.
+	if err := tmp.Chmod(0o644); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmp.Name())
 		return err

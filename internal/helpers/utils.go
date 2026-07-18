@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
+
+	"github.com/sergey-pr/accentctl/internal/config"
 )
 
 // DocumentName strips directory and extension from a file path.
@@ -16,13 +18,17 @@ func DocumentName(filePath string) string {
 	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
-// ApplyTargetTemplate replaces placeholders in the target pattern, deriving
-// them from the source file path.
-// Supported placeholders: %slug%, %document_path%, %original_file_name%.
-//
-// %original_file_name% keeps the source file's own extension, so a .yaml source
-// yields a .yaml target. Only pull can act on a non-JSON format, but its target
-// paths have to be right for it to write them to the correct place.
+// SourceLanguage returns the file's configured language, falling back to the
+// slug extracted from the source path via the target template.
+func SourceLanguage(file config.File, src string) string {
+	if file.Language != "" {
+		return file.Language
+	}
+	return LanguageFromPath(filepath.ToSlash(src), file.Target)
+}
+
+// ApplyTargetTemplate fills %slug%, %document_path% and %original_file_name% in
+// the target pattern. The file name keeps the source's own extension, so non-JSON pulls land in the right file.
 func ApplyTargetTemplate(target, language, src string) string {
 	base := filepath.Base(src)
 	r := strings.NewReplacer(

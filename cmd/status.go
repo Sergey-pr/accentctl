@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -44,19 +43,11 @@ func runStatus(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		// Determine source language.
-		sourceLanguage := file.Language
-		if sourceLanguage == "" && len(sources) > 0 {
-			sourceLanguage = helpers.LanguageFromPath(filepath.ToSlash(sources[0]), file.Target)
-		}
+		sourceLanguage := helpers.SourceLanguage(file, sources[0])
 
-		// Check source files.
 		for _, src := range sources {
 			docPath := helpers.DocumentName(src)
-			language := file.Language
-			if language == "" {
-				language = helpers.LanguageFromPath(filepath.ToSlash(src), file.Target)
-			}
+			language := helpers.SourceLanguage(file, src)
 
 			toPush, toDelete, err := diffWithAccent(client, src, docPath, file.Format, language)
 			if err != nil {
@@ -65,7 +56,6 @@ func runStatus(_ *cobra.Command, _ []string) error {
 			printFileStatus(src, language, toPush, toDelete)
 		}
 
-		// Check translation files for each slug.
 		for _, slug := range slugs {
 			if slug == sourceLanguage {
 				continue
@@ -89,9 +79,8 @@ func runStatus(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-// diffWithAccent compares a local file against the Accent server state.
-// Returns the number of keys that need pushing (local but not in Accent)
-// and the number that need deleting (in Accent but not local).
+// diffWithAccent counts keys to push (local but not in Accent) and keys to
+// delete (in Accent but not local) for one file.
 func diffWithAccent(client *api.Client, localPath, docPath, format, language string) (toPush, toDelete int, err error) {
 	existingData, err := client.ExportBytes(docPath, format, language)
 	if err != nil {
@@ -103,10 +92,7 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 		return 0, 0, err
 	}
 	localNodes := helpers.CollectNodes(localObj, nil)
-	localSet := make(map[string]bool, len(localNodes))
-	for _, l := range localNodes {
-		localSet[helpers.NodeKey(l.Path)] = true
-	}
+	localSet := helpers.NodeSet(localNodes)
 
 	accentSet := map[string]bool{}
 	if len(existingData) > 0 {
@@ -116,9 +102,7 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 			return 0, 0, nil
 		}
 		if accObj != nil {
-			for _, l := range helpers.CollectNodes(accObj, nil) {
-				accentSet[helpers.NodeKey(l.Path)] = true
-			}
+			accentSet = helpers.NodeSet(helpers.CollectNodes(accObj, nil))
 		}
 	}
 

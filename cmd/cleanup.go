@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -44,10 +44,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 
 		for _, src := range sources {
 			documentPath := helpers.DocumentName(src)
-			language := file.Language
-			if language == "" {
-				language = helpers.LanguageFromPath(filepath.ToSlash(src), file.Target)
-			}
+			language := helpers.SourceLanguage(file, src)
 			if err := cleanupFileChunked(client, src, documentPath, file.Format, language); err != nil {
 				return err
 			}
@@ -64,14 +61,9 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-// cleanupFileChunked removes orphaned keys by chunks.
-// Each upload contains: all local keys + remaining
-// orphaned keys not yet removed. With smart sync this removes exactly the
-// orphaned keys that were dropped from the file.
-//
-// File size shrinks by constants.ChunkSize each round
+// cleanupFileChunked deletes keys that exist in Accent but not locally. Each
+// smart-sync upload holds all local keys plus the orphans not yet removed, so one chunk of orphans drops per round.
 func cleanupFileChunked(client *api.Client, src, documentPath, format, language string) error {
-	// Fetch what Accent currently has.
 	existingData, err := client.ExportBytes(documentPath, format, language)
 	if err != nil {
 		return fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
@@ -82,26 +74,14 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 		return err
 	}
 	localNodes := helpers.CollectNodes(localObj, nil)
+	localSet := helpers.NodeSet(localNodes)
 
-	// Build set of local node keys.
-	localSet := make(map[string]bool, len(localNodes))
-	for _, l := range localNodes {
-		localSet[helpers.NodeKey(l.Path)] = true
-	}
-
-	// Find orphaned nodes (in Accent but not in local file).
 	var orphaned []helpers.NodeEntry
-	if len(existingData) > 0 {
-		accObj, err := helpers.ParseJSONObject(existingData)
-		if err == nil && accObj != nil {
-			for _, l := range helpers.CollectNodes(accObj, nil) {
-				if !localSet[helpers.NodeKey(l.Path)] {
-					orphaned = append(orphaned, l)
-				}
-			}
+	for _, n := range helpers.ServerNodes(existingData) {
+		if !localSet[helpers.NodeKey(n.Path)] {
+			orphaned = append(orphaned, n)
 		}
 	}
-
 	if len(orphaned) == 0 {
 		output.Info(fmt.Sprintf("%s: no orphaned keys", src))
 		return nil
@@ -112,52 +92,24 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 	output.Info(fmt.Sprintf("%s: removing %d orphaned keys in %d chunk(s)", src, total, nChunks))
 
 	opts := api.SyncOptions{SyncType: "smart"}
-	var tmpFiles []string
-	defer func() {
-		for _, p := range tmpFiles {
-			_ = os.Remove(p)
-		}
-	}()
+	for start := 0; start < total; start += constants.ChunkSize {
+		end := min(start+constants.ChunkSize, total)
+		combined := slices.Concat(localNodes, orphaned[end:])
 
-	for i := 0; i < total; i += constants.ChunkSize {
-		// This chunk removes orphaned[i : i+constants.ChunkSize].
-		// File = local keys + orphaned keys not yet removed (i+constants.ChunkSize onward).
-		end := i + constants.ChunkSize
-		if end > total {
-			end = total
-		}
-		remaining := orphaned[end:]
-		combined := append(localNodes, remaining...)
-
-		data, err := helpers.MarshalNodes(combined)
+		tmpName, err := helpers.WriteNodesTempFile(combined, "accentctl-cleanup-*.json")
 		if err != nil {
 			return fmt.Errorf("%s: %w", src, err)
 		}
 
-		tmp, err := os.CreateTemp("", "accentctl-cleanup-*.json")
-		if err != nil {
-			return err
-		}
-		if _, err := tmp.Write(data); err != nil {
-			_ = tmp.Close()
-			return err
-		}
-		_ = tmp.Close()
-
-		tmpName := tmp.Name()
-
-		tmpFiles = append(tmpFiles, tmpName)
-
-		chunkNum := i/constants.ChunkSize + 1
+		chunkNum := start/constants.ChunkSize + 1
 		if verbose {
 			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
 		}
-
 		err = syncChunk(client, src, documentPath, format, language, tmpName, chunkNum, nChunks, opts)
+		_ = os.Remove(tmpName)
 		if err != nil {
 			return err
 		}
-
 	}
 	return nil
 }

@@ -29,10 +29,8 @@ func TestHookShell(t *testing.T) {
 	}
 }
 
-// TestRunHooksExecutesOnThisPlatform is the check that actually catches the
-// Windows bug: it runs a real hook through whichever shell this platform uses.
-// `echo text> file` is written the same way in sh and cmd.exe, with no space
-// before the redirect (cmd would include it in the output).
+// TestRunHooksExecutesOnThisPlatform runs a real hook through this platform's
+// shell; `echo text> file` parses the same in sh and cmd.exe.
 func TestRunHooksExecutesOnThisPlatform(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

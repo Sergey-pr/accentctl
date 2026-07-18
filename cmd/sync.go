@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/mattn/go-isatty"
@@ -95,18 +94,16 @@ func runSync(_ *cobra.Command, _ []string) error {
 	return err
 }
 
-// syncRecoveryHint tells the user how to close the window a failed sync leaves
-// open. Re-running sync is the instinctive reaction and the destructive one:
-// its pull phase overwrites the very translations the recovery needs.
+// Re-running sync is the instinctive reaction to a failure and the destructive
+// one: its pull phase overwrites the local translations the recovery needs.
 const syncRecoveryHint = `Keys were uploaded but their translations were not all pushed.
 Run 'accentctl sync --translations-only' to finish the job.
 Do not run sync or pull first: both end by pulling the server's copy over your
 local files, and a key that is untranslated on the server comes back holding the
 source text, overwriting the local translation that the recovery needs.`
 
-// syncProgress records how far a sync got. Keys landing on the server without
-// their translations is the state that needs recovery; once the translations
-// phase completes the window is closed again.
+// syncProgress records how far a sync got. Keys on the server without their
+// translations is the state that needs recovery.
 type syncProgress struct {
 	keysUploaded       bool
 	translationsPushed bool
@@ -136,10 +133,7 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 		keySet := map[string]bool{}
 		for _, src := range sources {
 			documentPath := helpers.DocumentName(src)
-			language := file.Language
-			if language == "" {
-				language = helpers.LanguageFromPath(filepath.ToSlash(src), file.Target)
-			}
+			language := helpers.SourceLanguage(file, src)
 
 			if syncForce {
 				if err := deleteAllKeysChunked(client, src, documentPath, file.Format, language); err != nil {
@@ -154,8 +148,8 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 			if err != nil {
 				return progress, err
 			}
-			for _, l := range newNodes {
-				keySet[helpers.NodeKey(l.Path)] = true
+			for _, n := range newNodes {
+				keySet[helpers.NodeKey(n.Path)] = true
 			}
 		}
 		results = append(results, fileNewKeys{file, keySet})
@@ -164,12 +158,10 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 	output.Section("Adding translations")
 	for _, r := range results {
 		if syncForce {
-			// Force all translations for all languages.
-			if err := helpers.AddTranslationsFile(client, r.file, "force", verbose); err != nil {
+			if err := helpers.AddAllTranslations(client, r.file, "force", verbose); err != nil {
 				return progress, err
 			}
 		} else if len(r.keySet) > 0 {
-			// Force translations only for the newly added source keys.
 			if err := helpers.AddTranslationsForNewKeys(client, r.file, r.keySet, verbose); err != nil {
 				return progress, err
 			}
@@ -177,29 +169,11 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 	}
 	progress.translationsPushed = true
 
-	output.Section("Pulling updated files")
-	for _, file := range cfg.Files {
-		if err := pullFile(client, file, syncOrderBy); err != nil {
-			return progress, err
-		}
-	}
-
-	for _, file := range cfg.Files {
-		if err := runHooks(file.Hooks.AfterSync); err != nil {
-			return progress, fmt.Errorf("afterSync hook failed: %w", err)
-		}
-	}
-
-	return progress, nil
+	return progress, finishSync(client, cfg)
 }
 
-// runSyncTranslationsOnly recovers from a sync that was interrupted between its
-// "Syncing files" and "Adding translations" phases. Re-running a plain sync
-// cannot fix that state: Accent already created the keys in every language, so
-// the new-key diff finds nothing and the translations are never pushed.
-//
-// It uploads no keys and deletes nothing. The passive merge leaves any string a
-// reviewer has corrected in Accent untouched, so it is safe to re-run.
+// runSyncTranslationsOnly recovers a sync that died between uploading keys and
+// pushing translations; the passive merge keeps reviewer-corrected strings, so it is safe to re-run.
 func runSyncTranslationsOnly(client *api.Client, cfg *config.Config) error {
 	output.Section("Adding translations")
 	for _, file := range cfg.Files {
@@ -207,7 +181,11 @@ func runSyncTranslationsOnly(client *api.Client, cfg *config.Config) error {
 			return err
 		}
 	}
+	return finishSync(client, cfg)
+}
 
+// finishSync pulls the server's copy over local files and runs afterSync hooks.
+func finishSync(client *api.Client, cfg *config.Config) error {
 	output.Section("Pulling updated files")
 	for _, file := range cfg.Files {
 		if err := pullFile(client, file, syncOrderBy); err != nil {
@@ -223,10 +201,8 @@ func runSyncTranslationsOnly(client *api.Client, cfg *config.Config) error {
 	return nil
 }
 
-// confirmForceSync guards the destructive `sync --force` path, which deletes
-// every key on the server before re-uploading. It requires either the --yes
-// flag or an interactive "yes" confirmation, and aborts on a non-TTY without
-// --yes rather than silently wiping the remote project.
+// confirmForceSync gates the destructive --force path: it wants --yes or an
+// interactive "yes", and refuses to run on a non-TTY without --yes.
 func confirmForceSync(cfg *config.Config) error {
 	docCount := 0
 	for _, file := range cfg.Files {
@@ -258,96 +234,45 @@ func confirmForceSync(cfg *config.Config) error {
 	return nil
 }
 
-// deleteAllKeysChunked deletes every key in Accent for the given document by
-// uploading progressively smaller files, each removing chunk size via smart sync.
-// The final upload is an empty object which clears all remaining keys.
+// deleteAllKeysChunked wipes a document by uploading ever-smaller files via
+// smart sync, ending with an empty object that clears the last keys.
 func deleteAllKeysChunked(client *api.Client, src, documentPath, format, language string) error {
 	existingData, err := client.ExportBytes(documentPath, format, language)
 	if err != nil {
 		return fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
 	}
-	if len(existingData) == 0 {
-		output.Info(fmt.Sprintf("%s: no keys on server", src))
-		return nil
-	}
 
-	accObj, err := helpers.ParseJSONObject(existingData)
-	if err != nil || accObj == nil {
-		output.Info(fmt.Sprintf("%s: no keys on server", src))
-		return nil
-	}
-	allNodes := helpers.CollectNodes(accObj, nil)
+	allNodes := helpers.ServerNodes(existingData)
 	if len(allNodes) == 0 {
 		output.Info(fmt.Sprintf("%s: no keys on server", src))
 		return nil
 	}
 
 	total := len(allNodes)
-	// +1 for the final empty-file chunk
 	nChunks := (total + constants.ChunkSize - 1) / constants.ChunkSize
 	output.Info(fmt.Sprintf("%s: deleting %d keys in %d chunk(s)", src, total, nChunks))
 
 	opts := api.SyncOptions{SyncType: "smart"}
-	var tmpFiles []string
-	defer func() {
-		for _, p := range tmpFiles {
-			_ = os.Remove(p)
-		}
-	}()
-
-	chunkNum := 0
-	for start := 0; start <= total; start += constants.ChunkSize {
-		chunkNum++
-
-		// Upload allNodes[start+constants.ChunkSize:]
-		// When start >= total the remaining slice is empty and uploads "{}"
-		end := start + constants.ChunkSize
-		if end > total {
-			end = total
-		}
-		remaining := allNodes[end:]
-
-		data, err := helpers.MarshalNodes(remaining)
+	for chunk := 1; chunk <= nChunks; chunk++ {
+		remaining := allNodes[min(chunk*constants.ChunkSize, total):]
+		tmpName, err := helpers.WriteNodesTempFile(remaining, "accentctl-del-*.json")
 		if err != nil {
 			return fmt.Errorf("%s: %w", src, err)
 		}
-
-		tmp, err := os.CreateTemp("", "accentctl-del-*.json")
-		if err != nil {
-			return err
-		}
-		if _, err := tmp.Write(data); err != nil {
-			_ = tmp.Close()
-			return err
-		}
-		_ = tmp.Close()
-
-		tmpName := tmp.Name()
-
-		tmpFiles = append(tmpFiles, tmpName)
-
 		if verbose {
-			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
+			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunk, nChunks, tmpName))
 		}
-		err = syncChunk(client, src, documentPath, format, language, tmpName, chunkNum, nChunks, opts)
+		err = syncChunk(client, src, documentPath, format, language, tmpName, chunk, nChunks, opts)
+		_ = os.Remove(tmpName)
 		if err != nil {
 			return err
-		}
-
-		if end >= total {
-			break
 		}
 	}
 	return nil
 }
 
-// syncFileChunked fetches the current Accent state, finds new keys, and
-// uploads them in batches of ChunkSize.
-// With force=true, treats all local keys as new (re-uploads everything).
-//
-// uploaded reports whether at least one chunk reached the server, which stays
-// true alongside an error when a later chunk fails: the caller needs it to tell
-// a failure that changed nothing from one that left keys behind.
+// syncFileChunked uploads keys missing from the server in cumulative chunks;
+// force treats every local key as new. uploaded stays true next to an error so the caller knows keys already landed.
 func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) (newNodes []helpers.NodeEntry, uploaded bool, err error) {
 	var existing []byte
 	if !force {

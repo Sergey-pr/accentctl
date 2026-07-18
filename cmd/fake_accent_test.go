@@ -30,15 +30,8 @@ type uploadCall struct {
 	KeyCount int    // number of leaf keys in the uploaded file
 }
 
-// fakeEntry is one translation: the value /export renders, plus Accent's
-// `conflicted` flag. A translation is created conflicted and stays that way
-// until a reviewer corrects it in Accent; merge_type=passive keys off this flag
-// (Movement.Comparers.MergePassive noops on `conflicted: false`), which is what
-// makes passive safe for recovery.
-//
-// Simplification: Accent tracks proposed_text and corrected_text separately and
-// passive also noops when the two have diverged. Only the reviewed/unreviewed
-// distinction is modelled here.
+// fakeEntry is one translation plus Accent's `conflicted` flag: entries start
+// conflicted, settle when reviewed, and merge_type=passive skips settled ones.
 type fakeEntry struct {
 	value      json.RawMessage
 	conflicted bool
@@ -51,10 +44,8 @@ type fakeDoc struct {
 	langs map[string]map[string]*fakeEntry // language -> node key -> entry
 }
 
-// fakeAccent is an in-memory fake of the three Accent endpoints used by the
-// CLI: POST /sync, POST /add-translations, GET /export. Like the real server,
-// the key set is project-wide: adding a key via one language creates an entry
-// in every other project language, and removing a key removes it everywhere.
+// fakeAccent is an in-memory fake of POST /sync, POST /add-translations and
+// GET /export. As on the real server, the key set is shared by all project languages.
 type fakeAccent struct {
 	t          *testing.T
 	mu         sync.Mutex
@@ -80,10 +71,8 @@ func newFakeAccent(t *testing.T, languages ...string) *fakeAccent {
 
 func (f *fakeAccent) URL() string { return f.srv.URL }
 
-// seed sets a document's state directly, bypassing the endpoints: seeded values
-// are settled translations (not conflicted), and languages left unseeded get an
-// empty, still-conflicted placeholder. This is a low-level state setter — for
-// realistic new-key propagation, drive POST /sync instead.
+// seed sets a document's state directly: seeded values count as reviewed, and
+// languages left unseeded get an empty, still-conflicted placeholder.
 func (f *fakeAccent) seed(document, language string, pairs [][2]string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -182,9 +171,8 @@ func (f *fakeAccent) inOrder(doc *fakeDoc, key string) bool {
 	return false
 }
 
-// failEndpoint makes every subsequent request to the given path ("/sync",
-// "/add-translations", "/export") fail, to simulate a server or network fault
-// partway through a command.
+// failEndpoint makes every later request to the given path respond 500, to
+// simulate a fault partway through a command.
 func (f *fakeAccent) failEndpoint(path string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -286,11 +274,8 @@ func (f *fakeAccent) handleSync(w http.ResponseWriter, r *http.Request) {
 		doc.order = kept
 	}
 
-	// Accent's ProjectSync runs the uploaded file against every language's
-	// revision, so a new key is created in all of them holding the *source*
-	// text (not an empty string), flagged conflicted until a reviewer corrects
-	// it. Movement.Migration.Translation.call(:new, ...) sets
-	// `conflicted: is_nil(version_id)`, and accentctl never sends a version.
+	// As on the real server, a synced key appears in every language holding
+	// the source text, conflicted until a reviewer corrects it.
 	for _, n := range nodes {
 		k := helpers.NodeKey(n.Path)
 		if f.inOrder(doc, k) {
@@ -337,9 +322,7 @@ func (f *fakeAccent) handleAddTranslations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// A merge never creates or removes keys: Movement.Builders.RevisionMerge
-	// runs EntriesCommitProcessor.process/1 only (no process_for_remove/1), and
-	// MergePassive/MergeForce both noop on a nil translation.
+	// A merge never creates or removes keys, and passive skips reviewed entries.
 	for _, n := range nodes {
 		k := helpers.NodeKey(n.Path)
 		entry, exists := values[k]

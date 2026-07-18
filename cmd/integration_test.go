@@ -16,8 +16,7 @@ import (
 )
 
 // setupProject chdirs into a fresh temp dir and writes an accent.json pointing
-// at the fake server. Source files live in localization/en, targets follow
-// localization/%slug%/%original_file_name%.
+// at the fake server, with sources in localization/en.
 func setupProject(t *testing.T, apiURL string) {
 	t.Helper()
 	setupProjectWithFormat(t, apiURL, "json")
@@ -339,8 +338,9 @@ func TestSyncForceDeletesThenReuploadsInChunks(t *testing.T) {
 		t.Errorf("passive (re-upload) sizes = %v, want %v", got, want)
 	}
 
+	// Translations go in disjoint chunks: a merge never removes absent keys.
 	addCalls := fake.callsTo("add-translations")
-	if got, want := keyCounts(addCalls), []int{250, 500, n}; !reflect.DeepEqual(got, want) {
+	if got, want := keyCounts(addCalls), []int{250, 250, 1}; !reflect.DeepEqual(got, want) {
 		t.Errorf("add-translations sizes = %v, want %v", got, want)
 	}
 	for _, c := range addCalls {
@@ -384,10 +384,8 @@ func TestSyncForceWithoutYesAbortsOnNonTTY(t *testing.T) {
 	}
 }
 
-// interruptSyncAfterKeyUpload reproduces the state left by a sync that died
-// between its "Syncing files" and "Adding translations" phases: the new source
-// keys are on the server (and so exist in every language) but no translation
-// was ever pushed for them.
+// interruptSyncAfterKeyUpload reproduces a sync that died between its phases:
+// the new keys are on the server in every language, but no translation was pushed.
 func interruptSyncAfterKeyUpload(t *testing.T, fake *fakeAccent) {
 	t.Helper()
 	client := api.New(fake.URL(), fakeAPIKey, false)
@@ -446,10 +444,8 @@ func TestSyncTranslationsOnlyRecoversInterruptedSync(t *testing.T) {
 	}
 }
 
-// TestInterruptedSyncIsNotFixedByPlainRerun pins down the gap that
-// --translations-only exists to close. A plain re-run does not recover an
-// interrupted sync, and its pull phase overwrites the local translations that
-// recovery needs -- so recovery has to run before any pull.
+// TestInterruptedSyncIsNotFixedByPlainRerun pins down the gap --translations-only
+// closes: a plain re-run recovers nothing and its pull phase destroys what recovery needs.
 func TestInterruptedSyncIsNotFixedByPlainRerun(t *testing.T) {
 	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
