@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/sergey-pr/accentctl/internal/constants"
@@ -70,11 +71,29 @@ func TestAddTranslationsNotFound(t *testing.T) {
 
 func TestPostOperationServerError(t *testing.T) {
 	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid document_format"}`, http.StatusBadRequest)
 	})
 	_, err := client.Sync(writeTempJSON(t, `{}`), "app", "json", "en", SyncOptions{})
 	if err == nil {
 		t.Fatal("want error on HTTP 400, got nil")
+	}
+	if !strings.Contains(err.Error(), "HTTP 400") || !strings.Contains(err.Error(), "invalid document_format") {
+		t.Errorf("err = %v, want status and response body included", err)
+	}
+}
+
+func TestExportErrorsIncludeResponseBody(t *testing.T) {
+	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "revision not configured", http.StatusInternalServerError)
+	})
+
+	if _, err := client.ExportBytes("app", "json", "en"); err == nil || !strings.Contains(err.Error(), "revision not configured") {
+		t.Errorf("ExportBytes err = %v, want response body included", err)
+	}
+
+	err := client.Export(filepath.Join(t.TempDir(), "app.json"), "app", "json", "en", ExportOptions{})
+	if err == nil || !strings.Contains(err.Error(), "revision not configured") {
+		t.Errorf("Export err = %v, want response body included", err)
 	}
 }
 

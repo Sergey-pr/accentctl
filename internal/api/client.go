@@ -172,7 +172,7 @@ func (c *Client) ExportBytes(documentPath, format, language string) ([]byte, err
 		return nil, nil
 	}
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("export failed: HTTP %d", resp.StatusCode)
+		return nil, httpError("export failed", resp)
 	}
 	return io.ReadAll(resp.Body)
 }
@@ -191,7 +191,7 @@ func (c *Client) Export(destPath, documentPath, format, language string, opts Ex
 		return ErrNotFound
 	}
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("export failed: HTTP %d", resp.StatusCode)
+		return httpError("export failed", resp)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
@@ -233,6 +233,14 @@ func (c *Client) setAuth(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 }
 
+func httpError(op string, resp *http.Response) error {
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	if msg := strings.TrimSpace(string(body)); msg != "" {
+		return fmt.Errorf("%s: HTTP %d: %s", op, resp.StatusCode, msg)
+	}
+	return fmt.Errorf("%s: HTTP %d", op, resp.StatusCode)
+}
+
 func (c *Client) postOperation(endpoint string, body *bytes.Buffer, contentType string) (*PeekResult, error) {
 	req, err := http.NewRequest(http.MethodPost, endpoint, body)
 	if err != nil {
@@ -253,7 +261,7 @@ func (c *Client) postOperation(endpoint string, body *bytes.Buffer, contentType 
 		return nil, ErrNotFound
 	}
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API error: HTTP %d", resp.StatusCode)
+		return nil, httpError("API error", resp)
 	}
 
 	var result struct {
