@@ -309,7 +309,7 @@ func syncFileChunked(client *api.Client, src, documentPath, format, language, or
 		if verbose {
 			output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
 		}
-		_, err := client.Sync(chunk, documentPath, format, language, opts)
+		err := client.Sync(chunk, documentPath, format, language, opts)
 		if err != nil {
 			return nil, uploaded, fmt.Errorf("%s chunk %d/%d: %w", src, i+1, len(chunks), err)
 		}

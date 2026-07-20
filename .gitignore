@@ -22,13 +22,12 @@ go.work.sum
 # env file
 .env
 
-# Local config overrides (store your apiKey here, never commit)
-accent.local.json
-accent.local.yaml
-accent.local.toml
+# Local configs
+accent.*
 
 # Editor/IDE
 .idea/
 .vscode/
 
 *.local*
+test/

@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -68,14 +67,6 @@ func (t *verboseTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	return resp, nil
 }
 
-// PeekResult is the response body from a sync/add-translations peek call.
-type PeekResult struct {
-	NewCount       int `json:"new_count"`
-	UpdatedCount   int `json:"updated_count"`
-	RemovedCount   int `json:"removed_count"`
-	ConflictsCount int `json:"conflicts_count"`
-}
-
 // SyncOptions controls the sync operation.
 type SyncOptions struct {
 	SyncType string // smart | passive
@@ -93,7 +84,7 @@ type ExportOptions struct {
 }
 
 // Sync uploads a file and syncs it with Accent.
-func (c *Client) Sync(filePath, documentPath, format, language string, opts SyncOptions) (*PeekResult, error) {
+func (c *Client) Sync(filePath, documentPath, format, language string, opts SyncOptions) error {
 	endpoint := c.apiURL + "/sync"
 
 	body, contentType, err := buildMultipart(func(w *multipart.Writer) error {
@@ -111,14 +102,14 @@ func (c *Client) Sync(filePath, documentPath, format, language string, opts Sync
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	return c.postOperation(endpoint, body, contentType)
 }
 
 // AddTranslations uploads a translation file to Accent.
-func (c *Client) AddTranslations(filePath, documentPath, format, language string, opts AddTranslationsOptions) (*PeekResult, error) {
+func (c *Client) AddTranslations(filePath, documentPath, format, language string, opts AddTranslationsOptions) error {
 	endpoint := c.apiURL + "/add-translations"
 	body, contentType, err := buildMultipart(func(w *multipart.Writer) error {
 		if err := writeFile(w, "file", filePath); err != nil {
@@ -133,7 +124,7 @@ func (c *Client) AddTranslations(filePath, documentPath, format, language string
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	return c.postOperation(endpoint, body, contentType)
@@ -241,36 +232,31 @@ func httpError(op string, resp *http.Response) error {
 	return fmt.Errorf("%s: HTTP %d", op, resp.StatusCode)
 }
 
-func (c *Client) postOperation(endpoint string, body *bytes.Buffer, contentType string) (*PeekResult, error) {
+// postOperation sends the request and checks the status; the Accent server
+// answers successful sync/merge calls with an empty body, so there is nothing to decode.
+func (c *Client) postOperation(endpoint string, body *bytes.Buffer, contentType string) error {
 	req, err := http.NewRequest(http.MethodPost, endpoint, body)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	c.setAuth(req)
 	req.Header.Set("Content-Type", contentType)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrNotFound
+		return ErrNotFound
 	}
 	if resp.StatusCode >= 400 {
-		return nil, httpError("API error", resp)
+		return httpError("API error", resp)
 	}
-
-	var result struct {
-		Data PeekResult `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+	return nil
 }
 
 func buildMultipart(fn func(*multipart.Writer) error) (*bytes.Buffer, string, error) {

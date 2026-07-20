@@ -116,7 +116,7 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 
 func syncChunk(client *api.Client, src, documentPath, format, language, tmpName string, chunkNum, nChunks int,
 	opts api.SyncOptions) error {
-	_, err := client.Sync(tmpName, documentPath, format, language, opts)
+	err := client.Sync(tmpName, documentPath, format, language, opts)
 	if err != nil {
 		return fmt.Errorf("%s chunk %d/%d: %w", src, chunkNum, nChunks, err)
 	}

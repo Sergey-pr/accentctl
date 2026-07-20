@@ -297,7 +297,7 @@ func (f *fakeAccent) handleSync(w http.ResponseWriter, r *http.Request) {
 	if hook != nil {
 		hook(call)
 	}
-	writePeekResult(w)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (f *fakeAccent) handleAddTranslations(w http.ResponseWriter, r *http.Request) {
@@ -345,7 +345,7 @@ func (f *fakeAccent) handleAddTranslations(w http.ResponseWriter, r *http.Reques
 	if hook != nil {
 		hook(call)
 	}
-	writePeekResult(w)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (f *fakeAccent) handleExport(w http.ResponseWriter, r *http.Request) {
@@ -389,9 +389,4 @@ func (f *fakeAccent) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(data)
-}
-
-func writePeekResult(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`{"data":{"new_count":0,"updated_count":0,"removed_count":0,"conflicts_count":0}}`))
 }

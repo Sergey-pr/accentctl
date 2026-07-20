@@ -98,7 +98,7 @@ func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, localPath, d
 		if verbose {
 			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
 		}
-		_, err = client.AddTranslations(tmpName, docPath, format, slug, opts)
+		err = client.AddTranslations(tmpName, docPath, format, slug, opts)
 		_ = os.Remove(tmpName)
 		if errors.Is(err, api.ErrNotFound) {
 			return nil

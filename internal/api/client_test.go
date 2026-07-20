@@ -33,7 +33,8 @@ func writeTempJSON(t *testing.T, content string) string {
 	return path
 }
 
-func TestSyncDecodesPeekResult(t *testing.T) {
+// The real Accent server answers a successful sync with 200 and an empty body.
+func TestSyncAcceptsEmptyResponseBody(t *testing.T) {
 	var gotAuth, gotSyncType string
 	client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
@@ -41,10 +42,10 @@ func TestSyncDecodesPeekResult(t *testing.T) {
 			t.Fatal(err)
 		}
 		gotSyncType = r.FormValue("sync_type")
-		_, _ = w.Write([]byte(`{"data":{"new_count":3,"removed_count":1}}`))
+		w.WriteHeader(http.StatusOK)
 	})
 
-	result, err := client.Sync(writeTempJSON(t, `{"a":"A"}`), "app", "json", "en", SyncOptions{SyncType: "smart"})
+	err := client.Sync(writeTempJSON(t, `{"a":"A"}`), "app", "json", "en", SyncOptions{SyncType: "smart"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,16 +55,13 @@ func TestSyncDecodesPeekResult(t *testing.T) {
 	if gotSyncType != "smart" {
 		t.Errorf("sync_type = %q, want %q", gotSyncType, "smart")
 	}
-	if result.NewCount != 3 || result.RemovedCount != 1 {
-		t.Errorf("result = %+v, want new 3, removed 1", result)
-	}
 }
 
 func TestAddTranslationsNotFound(t *testing.T) {
 	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	})
-	_, err := client.AddTranslations(writeTempJSON(t, `{}`), "app", "json", "fr", AddTranslationsOptions{MergeType: "force"})
+	err := client.AddTranslations(writeTempJSON(t, `{}`), "app", "json", "fr", AddTranslationsOptions{MergeType: "force"})
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}
@@ -73,7 +71,7 @@ func TestPostOperationServerError(t *testing.T) {
 	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, `{"error":"invalid document_format"}`, http.StatusBadRequest)
 	})
-	_, err := client.Sync(writeTempJSON(t, `{}`), "app", "json", "en", SyncOptions{})
+	err := client.Sync(writeTempJSON(t, `{}`), "app", "json", "en", SyncOptions{})
 	if err == nil {
 		t.Fatal("want error on HTTP 400, got nil")
 	}
