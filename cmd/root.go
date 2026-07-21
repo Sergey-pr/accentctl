@@ -25,7 +25,8 @@ environment variables override the values in the config file.`,
 	},
 }
 
-func Execute() {
+func Execute(version string) {
+	root.Version = version
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
