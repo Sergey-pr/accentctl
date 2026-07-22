@@ -9,19 +9,13 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-
-	"github.com/sergey-pr/accentctl/internal/constants"
 )
-
-func init() {
-	constants.RequestDelay = 0
-}
 
 func newTestServer(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	return New(srv.URL, "key", false)
+	return New(srv.URL, "key", false, 0)
 }
 
 func writeTempJSON(t *testing.T, content string) string {

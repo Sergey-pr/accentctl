@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
 )
 
@@ -30,6 +31,10 @@ func Execute(version string) {
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func newClient(cfg *config.Config) *api.Client {
+	return api.New(cfg.APIURL, cfg.APIKey, verbose, cfg.RequestDelay)
 }
 
 // requireJSONFormat rejects configs that sync, cleanup and status cannot honour:

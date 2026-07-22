@@ -3,9 +3,12 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/spf13/viper"
+
+	"github.com/sergey-pr/accentctl/internal/constants"
 )
 
 type Hook struct {
@@ -36,14 +39,16 @@ func (f File) Sources() ([]string, error) {
 }
 
 type Config struct {
-	APIURL string `mapstructure:"apiUrl"`
-	APIKey string `mapstructure:"apiKey"`
-	Files  []File `mapstructure:"files"`
+	APIURL       string        `mapstructure:"apiUrl"`
+	APIKey       string        `mapstructure:"apiKey"`
+	RequestDelay time.Duration `mapstructure:"requestDelay"`
+	Files        []File        `mapstructure:"files"`
 }
 
 func Load() (*Config, error) {
 	viper.SetConfigName("accent")
 	viper.AddConfigPath(".")
+	viper.SetDefault("requestDelay", constants.DefaultRequestDelay)
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("could not read config file: %w\nRun 'accentctl init' to create one", err)
@@ -71,6 +76,13 @@ func Load() (*Config, error) {
 	if v := os.Getenv("ACCENT_API_URL"); v != "" {
 		cfg.APIURL = v
 	}
+	if v := os.Getenv("ACCENT_REQUEST_DELAY"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ACCENT_REQUEST_DELAY %q: %w", v, err)
+		}
+		cfg.RequestDelay = d
+	}
 
 	if err := cfg.validate(); err != nil {
 		return nil, err
@@ -88,6 +100,15 @@ func (c *Config) validate() error {
 	}
 	if len(c.Files) == 0 {
 		return fmt.Errorf("at least one file entry is required in config")
+	}
+	if c.RequestDelay < 0 {
+		return fmt.Errorf("requestDelay cannot be negative (got %s)", c.RequestDelay)
+	}
+	// A bare number decodes as nanoseconds, so 500 means 500ns, not 500ms.
+	if c.RequestDelay > 0 && c.RequestDelay < time.Millisecond {
+		return fmt.Errorf(
+			"requestDelay is %s; write it as a quoted duration string like \"500ms\" or \"1.5s\"",
+			c.RequestDelay)
 	}
 	return nil
 }

@@ -33,7 +33,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
+	client := newClient(cfg)
 	output.Section("Cleaning up")
 
 	for _, file := range cfg.Files {

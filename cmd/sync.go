@@ -75,7 +75,7 @@ func runSync(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
+	client := newClient(cfg)
 
 	for _, file := range cfg.Files {
 		if err := runHooks(file.Hooks.BeforeSync); err != nil {

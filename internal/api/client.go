@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/sergey-pr/accentctl/internal/constants"
 )
 
 // ErrNotFound is returned when the API responds with HTTP 404.
@@ -24,8 +22,8 @@ type Client struct {
 	http   *http.Client
 }
 
-func New(apiURL, apiKey string, verbose bool) *Client {
-	var transport http.RoundTripper = &throttledTransport{wrapped: http.DefaultTransport}
+func New(apiURL, apiKey string, verbose bool, delay time.Duration) *Client {
+	var transport http.RoundTripper = &throttledTransport{wrapped: http.DefaultTransport, delay: delay}
 	if verbose {
 		transport = &verboseTransport{wrapped: transport}
 	}
@@ -38,11 +36,14 @@ func New(apiURL, apiKey string, verbose bool) *Client {
 
 type throttledTransport struct {
 	wrapped http.RoundTripper
+	delay   time.Duration
 }
 
 func (t *throttledTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := t.wrapped.RoundTrip(req)
-	time.Sleep(constants.RequestDelay)
+	if t.delay > 0 {
+		time.Sleep(t.delay)
+	}
 	return resp, err
 }
 

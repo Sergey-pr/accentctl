@@ -30,6 +30,7 @@ func setupProjectWithFormat(t *testing.T, apiURL, format string) {
 	cfg := fmt.Sprintf(`{
   "apiUrl": %q,
   "apiKey": %q,
+  "requestDelay": "0s",
   "files": [{
     "format": %q,
     "source": "localization/en/*.json",
@@ -388,7 +389,7 @@ func TestSyncForceWithoutYesAbortsOnNonTTY(t *testing.T) {
 // the new keys are on the server in every language, but no translation was pushed.
 func interruptSyncAfterKeyUpload(t *testing.T, fake *fakeAccent) {
 	t.Helper()
-	client := api.New(fake.URL(), fakeAPIKey, false)
+	client := api.New(fake.URL(), fakeAPIKey, false, 0)
 	src := filepath.Join("localization", "en", "app.json")
 	if _, _, err := syncFileChunked(client, src, "app", "json", "en", "key", false); err != nil {
 		t.Fatal(err)
@@ -743,7 +744,7 @@ func TestStatusCountsPushAndDelete(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr","b":"B-fr"}`)
 
-	client := api.New(fake.URL(), fakeAPIKey, false)
+	client := api.New(fake.URL(), fakeAPIKey, false, 0)
 	toPush, toDelete, err := diffWithAccent(client, filepath.Join("localization", "en", "app.json"), "app", "json", "en")
 	if err != nil {
 		t.Fatal(err)

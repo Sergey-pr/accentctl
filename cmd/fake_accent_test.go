@@ -11,13 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/sergey-pr/accentctl/internal/constants"
 	"github.com/sergey-pr/accentctl/internal/helpers"
 )
-
-func init() {
-	constants.RequestDelay = 0
-}
 
 const fakeAPIKey = "test-api-key"
 

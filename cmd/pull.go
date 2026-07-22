@@ -34,7 +34,7 @@ func runPull(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	client := api.New(cfg.APIURL, cfg.APIKey, verbose)
+	client := newClient(cfg)
 	output.Section("Pulling files")
 
 	for _, file := range cfg.Files {

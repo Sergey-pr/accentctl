@@ -65,6 +65,23 @@ You can commit `accent.json` without any secrets. Values in the local file overr
 **Environment variables** override both config files:
 - `ACCENT_API_KEY`
 - `ACCENT_API_URL`
+- `ACCENT_REQUEST_DELAY`
+
+### Request throttling
+
+accentctl pauses between API requests so a large sync cannot hammer your Accent
+instance. The default is `1.5s`; set `requestDelay` to tune it:
+
+```json
+{
+  "requestDelay": "500ms"
+}
+```
+
+The value is a duration string — `"0s"` disables the pause entirely. A number
+without units is read as nanoseconds and rejected. Commands that export many
+documents (`status`, `pull`) spend most of their time in this pause, so lowering
+it speeds them up considerably — check what your instance tolerates first.
 
 ### Target template placeholders
 
