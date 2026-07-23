@@ -19,8 +19,16 @@ var cleanupCmd = &cobra.Command{
 	Short: "Remove Accent keys that are no longer in local source files",
 	Long: `Uploads each source file in cumulative chunks using smart sync.
 Orphaned keys (present in Accent but not in the local file) are deleted.`,
-	Example: `  accentctl cleanup`,
-	RunE:    runCleanup,
+	Example: `  accentctl cleanup
+  accentctl cleanup --order-by index`,
+	RunE: runCleanup,
+}
+
+var cleanupOrderBy string
+
+func init() {
+	cleanupCmd.Flags().StringVar(&cleanupOrderBy,
+		"order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
 }
 
 func runCleanup(_ *cobra.Command, _ []string) error {
@@ -53,7 +61,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 
 	output.Section("Pulling updated files")
 	for _, file := range cfg.Files {
-		if err := pullFile(client, file, "index"); err != nil {
+		if err := pullFile(client, file, cleanupOrderBy); err != nil {
 			return err
 		}
 	}

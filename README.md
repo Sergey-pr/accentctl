@@ -208,11 +208,17 @@ Accent side, create its file first, e.g. an empty `{}` at `localization/de/app.j
 
 ### `accentctl cleanup`
 
-Removes keys from Accent that are no longer present in your local source files.
+Removes keys from Accent that are no longer present in your local source files,
+then pulls the updated files back down.
 
 ```sh
 accentctl cleanup
+accentctl cleanup --order-by index
 ```
+
+| Flag         | Default | Description                                            |
+|--------------|---------|--------------------------------------------------------|
+| `--order-by` | `key`   | Key order in the files pulled afterwards (as `sync`)   |
 
 ### `accentctl status`
 

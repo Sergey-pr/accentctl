@@ -70,6 +70,7 @@ func resetFlags(t *testing.T) {
 		syncYes = false
 		syncTranslationsOnly = false
 		pullOrderBy = "key"
+		cleanupOrderBy = "key"
 	})
 }
 
@@ -694,6 +695,43 @@ func TestCleanupNoOrphansDoesNotUpload(t *testing.T) {
 
 	if calls := fake.callsTo("sync"); len(calls) != 0 {
 		t.Errorf("sync calls = %+v, want none", calls)
+	}
+}
+
+func TestCleanupPullsInKeyOrderByDefault(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en")
+	fake.seed("app", "en", [][2]string{{"b", "B"}, {"a", "A"}, {"orphan", "O"}})
+
+	setupProject(t, fake.URL())
+	sorted := "{\n  \"a\": \"A\",\n  \"b\": \"B\"\n}\n"
+	writeLocalFile(t, "en", "app", sorted)
+
+	if err := runCleanup(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := readLocalFile(t, "en", "app"); got != sorted {
+		t.Errorf("cleanup rewrote key-sorted file in server order: %q, want %q", got, sorted)
+	}
+}
+
+func TestCleanupOrderByIndexIsHonored(t *testing.T) {
+	resetFlags(t)
+	cleanupOrderBy = "index"
+	fake := newFakeAccent(t, "en")
+	fake.seed("app", "en", [][2]string{{"b", "B"}, {"a", "A"}})
+
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"b":"B","a":"A"}`)
+
+	if err := runCleanup(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	want := `{"b":"B","a":"A"}`
+	if got := readLocalFile(t, "en", "app"); got != want {
+		t.Errorf("cleanup --order-by index = %q, want insertion order %q", got, want)
 	}
 }
 
