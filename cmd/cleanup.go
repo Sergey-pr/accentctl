@@ -72,7 +72,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 // cleanupFileChunked deletes keys that exist in Accent but not locally. Each
 // smart-sync upload holds all local keys plus the orphans not yet removed, so one chunk of orphans drops per round.
 func cleanupFileChunked(client *api.Client, src, documentPath, format, language string) error {
-	existingData, err := client.ExportBytes(documentPath, format, language)
+	existingData, err := serverExport(client, documentPath, format, language)
 	if err != nil {
 		return fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
 	}

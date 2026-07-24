@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -35,6 +36,16 @@ func Execute(version string) {
 
 func newClient(cfg *config.Config) *api.Client {
 	return api.New(cfg.APIURL, cfg.APIKey, verbose, cfg.RequestDelay)
+}
+
+// serverExport returns a document's current bytes, treating a missing document
+// (ErrNotFound) as empty since sync, cleanup and status all diff against zero keys.
+func serverExport(client *api.Client, documentPath, format, language string) ([]byte, error) {
+	data, err := client.ExportBytes(documentPath, format, language)
+	if errors.Is(err, api.ErrNotFound) {
+		return nil, nil
+	}
+	return data, err
 }
 
 // requireJSONFormat rejects configs that sync, cleanup and status cannot honour:

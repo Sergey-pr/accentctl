@@ -237,7 +237,7 @@ func confirmForceSync(cfg *config.Config) error {
 // deleteAllKeysChunked wipes a document by uploading ever-smaller files via
 // smart sync, ending with an empty object that clears the last keys.
 func deleteAllKeysChunked(client *api.Client, src, documentPath, format, language string) error {
-	existingData, err := client.ExportBytes(documentPath, format, language)
+	existingData, err := serverExport(client, documentPath, format, language)
 	if err != nil {
 		return fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
 	}
@@ -276,7 +276,7 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) (newNodes []helpers.NodeEntry, uploaded bool, err error) {
 	var existing []byte
 	if !force {
-		existing, err = client.ExportBytes(documentPath, format, language)
+		existing, err = serverExport(client, documentPath, format, language)
 		if err != nil {
 			return nil, false, fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
 		}

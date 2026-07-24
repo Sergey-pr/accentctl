@@ -82,7 +82,7 @@ func runStatus(_ *cobra.Command, _ []string) error {
 // diffWithAccent counts keys to push (local but not in Accent) and keys to
 // delete (in Accent but not local) for one file.
 func diffWithAccent(client *api.Client, localPath, docPath, format, language string) (toPush, toDelete int, err error) {
-	existingData, err := client.ExportBytes(docPath, format, language)
+	existingData, err := serverExport(client, docPath, format, language)
 	if err != nil {
 		return 0, 0, fmt.Errorf("%s: %w", localPath, err)
 	}

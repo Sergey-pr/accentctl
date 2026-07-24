@@ -91,15 +91,16 @@ func TestExportErrorsIncludeResponseBody(t *testing.T) {
 
 func TestExportBytes(t *testing.T) {
 	tests := []struct {
-		name    string
-		status  int
-		body    string
-		want    string
-		wantErr bool
+		name       string
+		status     int
+		body       string
+		want       string
+		wantErr    bool
+		wantNotFnd bool
 	}{
-		{"ok", http.StatusOK, `{"a":"A"}`, `{"a":"A"}`, false},
-		{"not found returns nil, nil", http.StatusNotFound, "", "", false},
-		{"server error", http.StatusInternalServerError, "", "", true},
+		{name: "ok", status: http.StatusOK, body: `{"a":"A"}`, want: `{"a":"A"}`},
+		{name: "not found returns ErrNotFound", status: http.StatusNotFound, wantErr: true, wantNotFnd: true},
+		{name: "server error", status: http.StatusInternalServerError, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -110,6 +111,9 @@ func TestExportBytes(t *testing.T) {
 			got, err := client.ExportBytes("app", "json", "en")
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantNotFnd && !errors.Is(err, ErrNotFound) {
+				t.Errorf("err = %v, want ErrNotFound", err)
 			}
 			if string(got) != tt.want {
 				t.Errorf("body = %q, want %q", got, tt.want)

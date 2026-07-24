@@ -150,7 +150,7 @@ func (c *Client) exportRequest(documentPath, format, language, orderBy string) (
 }
 
 // ExportBytes fetches a translated file from Accent and returns its raw contents.
-// Returns (nil, nil) when the document/language does not exist (HTTP 404).
+// Returns ErrNotFound when the document/language does not exist (HTTP 404).
 func (c *Client) ExportBytes(documentPath, format, language string) ([]byte, error) {
 	resp, err := c.exportRequest(documentPath, format, language, "")
 	if err != nil {
@@ -161,7 +161,7 @@ func (c *Client) ExportBytes(documentPath, format, language string) ([]byte, err
 	}()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil
+		return nil, ErrNotFound
 	}
 	if resp.StatusCode >= 400 {
 		return nil, httpError("export failed", resp)

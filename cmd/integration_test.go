@@ -249,6 +249,24 @@ func TestSyncPushesNewKeysAndTheirTranslations(t *testing.T) {
 	}
 }
 
+func TestSyncNewDocumentNotOnServerIsTreatedAsEmpty(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en") // nothing seeded: /export 404s for "app"
+
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
+
+	if err := runSync(nil, nil); err != nil {
+		t.Fatalf("sync against a 404 document should treat it as empty, got %v", err)
+	}
+
+	got := fake.keys("app")
+	sort.Strings(got)
+	if want := []string{"a", "b"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("server keys = %v, want %v (all local keys pushed as new)", got, want)
+	}
+}
+
 func TestSyncPushesNewKeyTranslationsInDisjointChunks(t *testing.T) {
 	resetFlags(t)
 	const n = 501 // 2 full chunks of 250 + 1
