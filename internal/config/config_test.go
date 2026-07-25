@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,48 @@ func writeConfig(t *testing.T, extra string) {
 }`
 	if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLoadFindsConfigFromSubdirectory(t *testing.T) {
+	writeConfig(t, "")
+	root, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll("localization/en", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("localization/en/app.json", []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sub := filepath.Join(root, "deep", "nested")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(sub)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load from subdirectory: %v", err)
+	}
+	sources, err := cfg.Files[0].Sources()
+	if err != nil {
+		t.Fatalf("Sources after subdirectory load: %v", err)
+	}
+	if len(sources) != 1 {
+		t.Errorf("resolved %d sources, want 1 (globs must resolve from the project root)", len(sources))
+	}
+}
+
+func TestLoadMissingConfigStillErrors(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("ACCENT_API_KEY", "")
+	t.Setenv("ACCENT_API_URL", "")
+
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "could not read config file") {
+		t.Errorf("err = %v, want the not-found message", err)
 	}
 }
 

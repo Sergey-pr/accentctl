@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -46,11 +47,16 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	viper.SetConfigName("accent")
-	viper.AddConfigPath(".")
-	viper.SetDefault("requestDelay", constants.DefaultRequestDelay)
+	if err := chdirToConfigDir(); err != nil {
+		return nil, err
+	}
 
-	if err := viper.ReadInConfig(); err != nil {
+	v := viper.New()
+	v.SetConfigName("accent")
+	v.AddConfigPath(".")
+	v.SetDefault("requestDelay", constants.DefaultRequestDelay)
+
+	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("could not read config file: %w\nRun 'accentctl init' to create one", err)
 	}
 
@@ -59,13 +65,13 @@ func Load() (*Config, error) {
 	local.SetConfigName("accent.local")
 	local.AddConfigPath(".")
 	if err := local.ReadInConfig(); err == nil {
-		if err := viper.MergeConfigMap(local.AllSettings()); err != nil {
+		if err := v.MergeConfigMap(local.AllSettings()); err != nil {
 			return nil, fmt.Errorf("could not merge accent.local config: %w", err)
 		}
 	}
 
 	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
+	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
@@ -89,6 +95,35 @@ func Load() (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// chdirToConfigDir walks up from the working directory to the nearest ancestor
+// holding an accent config and enters it, so source globs and targets resolve
+// as if run from the project root. A no-op when the config is already here or absent.
+func chdirToConfigDir() error {
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	for {
+		if hasConfig(dir) {
+			return os.Chdir(dir)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil
+		}
+		dir = parent
+	}
+}
+
+func hasConfig(dir string) bool {
+	for _, name := range []string{"accent.json", "accent.yaml", "accent.yml", "accent.toml"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Config) validate() error {

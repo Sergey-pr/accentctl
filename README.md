@@ -39,6 +39,10 @@ Create an `accent.json` file in your project root, or run `accentctl init`:
 
 The config file itself may also be YAML or TOML (`accent.yaml`, `accent.toml`).
 
+You can run `accentctl` from any subdirectory of your project: it searches upward
+for the config file and operates from that directory, so `source` and `target`
+paths always resolve against the project root.
+
 ### A note on `format`
 
 `format` is the format of your **localization** files, and it is passed through to
