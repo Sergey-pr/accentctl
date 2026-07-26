@@ -56,11 +56,16 @@ If you need them for another format, please open an issue.
 
 ### Keeping your API key out of version control
 
-Run this once per project to save the key to `accent.local.json`, which should be gitignored:
+Run this once per project to save the key to `accent.local.json` (mode `0600`), which
+should be gitignored:
 
 ```sh
-accentctl key set your-api-key
+accentctl key set --stdin < key.txt
 ```
+
+Prefer `--stdin`: passing the key as an argument (`accentctl key set your-api-key`)
+leaves the secret in your shell history and in the process list. That form still works
+for convenience.
 
 You can commit `accent.json` without any secrets. Values in the local file override
 `accent.json`. The `init` command also prompts for an API key and saves it to
@@ -242,11 +247,17 @@ accentctl init
 
 ### `accentctl key set`
 
-Saves an API key to `accent.local.json`.
+Saves an API key to `accent.local.json` with mode `0600`.
 
 ```sh
+accentctl key set --stdin < key.txt
+echo your-api-key | accentctl key set --stdin
 accentctl key set your-api-key
 ```
+
+| Flag      | Default | Description                                             |
+|-----------|---------|---------------------------------------------------------|
+| `--stdin` | false   | Read the key from stdin, keeping it out of shell history |
 
 ## Improvements over accent-cli
 

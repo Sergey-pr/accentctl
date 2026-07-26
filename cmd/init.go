@@ -79,7 +79,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 			return err
 		}
 	} else {
-		fmt.Println("Remember to set your API key via `accentctl key set <apikey>` or the ACCENT_API_KEY environment variable.")
+		fmt.Println("Remember to set your API key via `accentctl key set --stdin` or the ACCENT_API_KEY environment variable.")
 	}
 	return nil
 }
