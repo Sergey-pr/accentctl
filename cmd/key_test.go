@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -76,6 +77,9 @@ func TestSaveLocalAPIKeyPreservesOtherFields(t *testing.T) {
 
 // The key file holds a secret and must not be world-readable.
 func TestSaveLocalAPIKeyFileMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no Unix permission bits; files always stat as 0666")
+	}
 	t.Chdir(t.TempDir())
 	if err := saveLocalAPIKey("secret"); err != nil {
 		t.Fatal(err)
