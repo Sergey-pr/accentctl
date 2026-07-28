@@ -146,6 +146,13 @@ the command.
 
 ## Commands
 
+Global flags, available on every command:
+
+| Flag              | Description                                     |
+|-------------------|-------------------------------------------------|
+| `--verbose`, `-v` | Log HTTP requests and responses                 |
+| `--version`       | Print the version (releases only; `dev` if built from source) |
+
 ### `accentctl sync`
 
 Uploads new source keys to Accent in chunks, force-pushes translations for those

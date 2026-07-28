@@ -22,8 +22,9 @@ var syncCmd = &cobra.Command{
 	Long: `Uploads new source keys in chunks and force-pushes translations for
 those new keys to all target languages.
 
-With --force: uploads all source keys and force-pushes all translations
-for all languages.
+With --force: deletes every key on the server first, then re-uploads all
+source keys and force-pushes all translations for all languages. It asks
+for confirmation unless --yes is given.
 
 With --translations-only: uploads no source keys and deletes nothing. It
 pushes every local translation with a passive merge, which fills only the
@@ -48,7 +49,7 @@ func init() {
 	syncCmd.Flags().StringVar(&syncOrderBy,
 		"order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
 	syncCmd.Flags().BoolVar(&syncForce,
-		"force", false, "Upload all source keys and force all translations for all languages")
+		"force", false, "Delete all server keys, then re-upload everything and force all translations")
 	syncCmd.Flags().BoolVar(&syncYes,
 		"yes", false, "Skip the --force confirmation prompt (for non-interactive use)")
 	syncCmd.Flags().BoolVar(&syncTranslationsOnly,
