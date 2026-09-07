@@ -256,15 +256,12 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 	opts := api.SyncOptions{SyncType: "smart"}
 	for chunk := 1; chunk <= nChunks; chunk++ {
 		remaining := allNodes[min(chunk*constants.ChunkSize, total):]
-		tmpName, err := helpers.WriteNodesTempFile(remaining, "accentctl-del-*.json")
-		if err != nil {
-			return fmt.Errorf("%s: %w", src, err)
-		}
-		if verbose {
-			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunk, nChunks, tmpName))
-		}
-		err = syncChunk(client, src, documentPath, format, language, tmpName, chunk, nChunks, opts)
-		_ = os.Remove(tmpName)
+		err := helpers.WithTempNodeFile(src, remaining, "accentctl-del-*.json", func(tmpName string) error {
+			if verbose {
+				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunk, nChunks, tmpName))
+			}
+			return syncChunk(client, src, documentPath, format, language, tmpName, chunk, nChunks, opts)
+		})
 		if err != nil {
 			return err
 		}

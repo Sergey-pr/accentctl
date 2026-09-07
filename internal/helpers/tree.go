@@ -3,6 +3,7 @@ package helpers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -132,6 +133,19 @@ func WriteNodesTempFile(nodes []NodeEntry, pattern string) (string, error) {
 		return "", err
 	}
 	return tmp.Name(), nil
+}
+
+// WithTempNodeFile marshals nodes into a temp file, hands the path to fn and
+// removes the file once fn returns. Creation failures carry the src path.
+func WithTempNodeFile(src string, nodes []NodeEntry, pattern string, fn func(path string) error) error {
+	tmpName, err := WriteNodesTempFile(nodes, pattern)
+	if err != nil {
+		return fmt.Errorf("%s: %w", src, err)
+	}
+	defer func() {
+		_ = os.Remove(tmpName)
+	}()
+	return fn(tmpName)
 }
 
 // NewKeysChunksWithNodes diffs the local file against server data and writes the

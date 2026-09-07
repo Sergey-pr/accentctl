@@ -91,25 +91,29 @@ func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, localPath, d
 		end := min(start+constants.ChunkSize, len(nodes))
 		chunkNum := start/constants.ChunkSize + 1
 
-		tmpName, err := WriteNodesTempFile(nodes[start:end], "accentctl-trans-*.json")
-		if err != nil {
-			return err
-		}
-		if verbose {
-			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
-		}
-		err = client.AddTranslations(tmpName, docPath, format, slug, opts)
-		_ = os.Remove(tmpName)
+		err := WithTempNodeFile(localPath, nodes[start:end], "accentctl-trans-*.json", func(tmpName string) error {
+			if verbose {
+				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
+			}
+			err := client.AddTranslations(tmpName, docPath, format, slug, opts)
+			if errors.Is(err, api.ErrNotFound) {
+				return err
+			}
+			if err != nil {
+				return fmt.Errorf("%s chunk %d/%d: %w", localPath, chunkNum, nChunks, err)
+			}
+			if verbose {
+				output.FileAddTranslations(fmt.Sprintf("%s [chunk %d/%d]", localPath, chunkNum, nChunks))
+			} else {
+				output.ChunkProgress(localPath, chunkNum, nChunks)
+			}
+			return nil
+		})
 		if errors.Is(err, api.ErrNotFound) {
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("%s chunk %d/%d: %w", localPath, chunkNum, nChunks, err)
-		}
-		if verbose {
-			output.FileAddTranslations(fmt.Sprintf("%s [chunk %d/%d]", localPath, chunkNum, nChunks))
-		} else {
-			output.ChunkProgress(localPath, chunkNum, nChunks)
+			return err
 		}
 	}
 	return nil

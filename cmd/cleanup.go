@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -103,18 +102,14 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 	for start := 0; start < total; start += constants.ChunkSize {
 		end := min(start+constants.ChunkSize, total)
 		combined := slices.Concat(localNodes, orphaned[end:])
-
-		tmpName, err := helpers.WriteNodesTempFile(combined, "accentctl-cleanup-*.json")
-		if err != nil {
-			return fmt.Errorf("%s: %w", src, err)
-		}
-
 		chunkNum := start/constants.ChunkSize + 1
-		if verbose {
-			output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
-		}
-		err = syncChunk(client, src, documentPath, format, language, tmpName, chunkNum, nChunks, opts)
-		_ = os.Remove(tmpName)
+
+		err := helpers.WithTempNodeFile(src, combined, "accentctl-cleanup-*.json", func(tmpName string) error {
+			if verbose {
+				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
+			}
+			return syncChunk(client, src, documentPath, format, language, tmpName, chunkNum, nChunks, opts)
+		})
 		if err != nil {
 			return err
 		}

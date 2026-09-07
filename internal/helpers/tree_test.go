@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 )
@@ -138,6 +139,47 @@ func TestMarshalNodes_empty(t *testing.T) {
 	}
 	if string(got) != "{}" {
 		t.Errorf("want {}, got %s", got)
+	}
+}
+
+func TestWithTempNodeFile_removesFileAfterFn(t *testing.T) {
+	nodes := []NodeEntry{{Path: []string{"a"}, Value: json.RawMessage(`"1"`)}}
+
+	var seen string
+	err := WithTempNodeFile("src.json", nodes, "withtemp-test-*.json", func(path string) error {
+		seen = path
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("fn could not read %s: %v", path, err)
+		}
+		jsonEqual(t, data, `{"a":"1"}`)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("WithTempNodeFile: %v", err)
+	}
+	if seen == "" {
+		t.Fatal("fn was never called")
+	}
+	if _, err := os.Stat(seen); !os.IsNotExist(err) {
+		t.Errorf("temp file %s still exists after return", seen)
+	}
+}
+
+func TestWithTempNodeFile_removesFileWhenFnFails(t *testing.T) {
+	nodes := []NodeEntry{{Path: []string{"a"}, Value: json.RawMessage(`"1"`)}}
+	wantErr := errors.New("upload failed")
+
+	var seen string
+	err := WithTempNodeFile("src.json", nodes, "withtemp-test-*.json", func(path string) error {
+		seen = path
+		return wantErr
+	})
+	if !errors.Is(err, wantErr) {
+		t.Errorf("got %v, want %v", err, wantErr)
+	}
+	if _, err := os.Stat(seen); !os.IsNotExist(err) {
+		t.Errorf("temp file %s still exists after failure", seen)
 	}
 }
 
