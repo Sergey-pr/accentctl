@@ -148,6 +148,11 @@ func WithTempNodeFile(src string, nodes []NodeEntry, pattern string, fn func(pat
 	return fn(tmpName)
 }
 
+// ChunkCount returns how many chunks of size hold n items.
+func ChunkCount(n, size int) int {
+	return (n + size - 1) / size
+}
+
 // NewKeysChunksWithNodes diffs the local file against server data and writes the
 // new keys to cumulative chunk files: /sync drops keys absent from an upload.
 func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int) (paths []string, newNodes []NodeEntry, err error) {

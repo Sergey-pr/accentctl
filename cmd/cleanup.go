@@ -95,7 +95,7 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 	}
 
 	total := len(orphaned)
-	nChunks := (total + constants.ChunkSize - 1) / constants.ChunkSize
+	nChunks := helpers.ChunkCount(total, constants.ChunkSize)
 	output.Info(fmt.Sprintf("%s: removing %d orphaned keys in %d chunk(s)", src, total, nChunks))
 
 	opts := api.SyncOptions{SyncType: "smart"}

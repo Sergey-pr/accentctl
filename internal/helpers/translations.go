@@ -83,7 +83,7 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 // uploadTranslationChunks sends nodes to /add-translations in disjoint batches:
 // a merge only touches keys present in the upload, so chunks need not accumulate.
 func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, localPath, docPath, format, slug, mergeType string, verbose bool) error {
-	nChunks := (len(nodes) + constants.ChunkSize - 1) / constants.ChunkSize
+	nChunks := ChunkCount(len(nodes), constants.ChunkSize)
 	output.Info(fmt.Sprintf("%s: %d translations -> %d chunk(s)", localPath, len(nodes), nChunks))
 
 	opts := api.AddTranslationsOptions{MergeType: mergeType}

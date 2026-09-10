@@ -142,6 +142,26 @@ func TestMarshalNodes_empty(t *testing.T) {
 	}
 }
 
+func TestChunkCount(t *testing.T) {
+	tests := []struct {
+		n, size, want int
+	}{
+		{0, 250, 0},
+		{1, 250, 1},
+		{249, 250, 1},
+		{250, 250, 1},
+		{251, 250, 2},
+		{500, 250, 2},
+		{501, 250, 3},
+		{7, 3, 3},
+	}
+	for _, tt := range tests {
+		if got := ChunkCount(tt.n, tt.size); got != tt.want {
+			t.Errorf("ChunkCount(%d, %d) = %d, want %d", tt.n, tt.size, got, tt.want)
+		}
+	}
+}
+
 func TestWithTempNodeFile_removesFileAfterFn(t *testing.T) {
 	nodes := []NodeEntry{{Path: []string{"a"}, Value: json.RawMessage(`"1"`)}}
 
