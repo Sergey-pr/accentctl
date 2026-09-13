@@ -813,3 +813,29 @@ func TestStatusCountsPushAndDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestStatusRejectsTargetWithoutSlugBeforeContactingServer(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en", "fr")
+	fake.failEndpoint("/export")
+	setupProject(t, fake.URL())
+	cfg := fmt.Sprintf(`{
+  "apiUrl": %q,
+  "apiKey": %q,
+  "requestDelay": "0s",
+  "files": [{
+    "format": "json",
+    "source": "localization/en/*.json",
+    "target": "localization/fr/%%original_file_name%%"
+  }]
+}`, fake.URL(), fakeAPIKey)
+	if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+
+	err := runStatus(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "%slug%") {
+		t.Fatalf("error = %v, want the missing %%slug%% target error", err)
+	}
+}

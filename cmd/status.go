@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -38,12 +37,9 @@ func runStatus(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		slugs, err := helpers.LanguageSlugsFromFilesystem(file.Target)
-		if err != nil {
+		if _, err := helpers.LanguageSlugsFromFilesystem(file.Target); err != nil {
 			return err
 		}
-
-		sourceLanguage := helpers.SourceLanguage(file, sources[0])
 
 		for _, src := range sources {
 			docPath := helpers.DocumentName(src)
@@ -56,23 +52,16 @@ func runStatus(_ *cobra.Command, _ []string) error {
 			printFileStatus(src, language, toPush, toDelete)
 		}
 
-		for _, slug := range slugs {
-			if slug == sourceLanguage {
-				continue
+		err = helpers.ForEachTranslationFile(file, func(localPath, docPath, slug string) error {
+			toPush, toDelete, err := diffWithAccent(client, localPath, docPath, file.Format, slug)
+			if err != nil {
+				return err
 			}
-			for _, src := range sources {
-				docPath := helpers.DocumentName(src)
-				localPath := helpers.ApplyTargetTemplate(file.Target, slug, src)
-				if _, err := os.Stat(localPath); err != nil {
-					continue
-				}
-
-				toPush, toDelete, err := diffWithAccent(client, localPath, docPath, file.Format, slug)
-				if err != nil {
-					return err
-				}
-				printFileStatus(localPath, slug, toPush, toDelete)
-			}
+			printFileStatus(localPath, slug, toPush, toDelete)
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 

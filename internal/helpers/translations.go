@@ -11,9 +11,9 @@ import (
 	"github.com/sergey-pr/accentctl/internal/output"
 )
 
-// forEachTranslationFile calls fn for every target-language file that exists
+// ForEachTranslationFile calls fn for every target-language file that exists
 // locally, skipping the source language.
-func forEachTranslationFile(file config.File, fn func(localPath, docPath, slug string) error) error {
+func ForEachTranslationFile(file config.File, fn func(localPath, docPath, slug string) error) error {
 	slugs, err := LanguageSlugsFromFilesystem(file.Target)
 	if err != nil {
 		return err
@@ -44,7 +44,7 @@ func forEachTranslationFile(file config.File, fn func(localPath, docPath, slug s
 // AddAllTranslations pushes every local translation without diffing against the
 // server. A "passive" merge keeps reviewer-corrected strings, so recovery cannot clobber them.
 func AddAllTranslations(client *api.Client, file config.File, mergeType string, verbose bool) error {
-	return forEachTranslationFile(file, func(localPath, docPath, slug string) error {
+	return ForEachTranslationFile(file, func(localPath, docPath, slug string) error {
 		obj, err := ReadJSONObjectFile(localPath)
 		if err != nil {
 			return err
@@ -61,7 +61,7 @@ func AddAllTranslations(client *api.Client, file config.File, mergeType string, 
 // AddTranslationsForNewKeys force-pushes translations for freshly synced source keys.
 // Accent creates each new key in every language holding the source text, so a plain diff sees nothing to push.
 func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet map[string]bool, verbose bool) error {
-	return forEachTranslationFile(file, func(localPath, docPath, slug string) error {
+	return ForEachTranslationFile(file, func(localPath, docPath, slug string) error {
 		obj, err := ReadJSONObjectFile(localPath)
 		if err != nil {
 			return err
