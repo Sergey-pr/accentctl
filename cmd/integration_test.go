@@ -814,12 +814,25 @@ func TestStatusCountsPushAndDelete(t *testing.T) {
 	}
 }
 
-func TestStatusRejectsTargetWithoutSlugBeforeContactingServer(t *testing.T) {
-	resetFlags(t)
-	fake := newFakeAccent(t, "en", "fr")
-	fake.failEndpoint("/export")
-	setupProject(t, fake.URL())
-	cfg := fmt.Sprintf(`{
+func TestTargetWithoutSlugIsRejectedBeforeContactingServer(t *testing.T) {
+	commands := map[string]func(*cobra.Command, []string) error{
+		"pull":    runPull,
+		"sync":    runSync,
+		"cleanup": runCleanup,
+		"status":  runStatus,
+	}
+	for name, run := range commands {
+		t.Run(name, func(t *testing.T) {
+			resetFlags(t)
+			syncForce = true
+			syncYes = true
+			fake := newFakeAccent(t, "en", "fr")
+			for _, endpoint := range []string{"/export", "/sync", "/add-translations"} {
+				fake.failEndpoint(endpoint)
+			}
+
+			t.Chdir(t.TempDir())
+			cfg := fmt.Sprintf(`{
   "apiUrl": %q,
   "apiKey": %q,
   "requestDelay": "0s",
@@ -829,13 +842,15 @@ func TestStatusRejectsTargetWithoutSlugBeforeContactingServer(t *testing.T) {
     "target": "localization/fr/%%original_file_name%%"
   }]
 }`, fake.URL(), fakeAPIKey)
-	if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+			if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			writeLocalFile(t, "en", "app", `{"a":"A"}`)
 
-	err := runStatus(nil, nil)
-	if err == nil || !strings.Contains(err.Error(), "%slug%") {
-		t.Fatalf("error = %v, want the missing %%slug%% target error", err)
+			err := run(nil, nil)
+			if err == nil || !strings.Contains(err.Error(), "%slug%") {
+				t.Fatalf("%s error = %v, want the missing %%slug%% target error", name, err)
+			}
+		})
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -135,6 +136,11 @@ func (c *Config) validate() error {
 	}
 	if len(c.Files) == 0 {
 		return fmt.Errorf("at least one file entry is required in config")
+	}
+	for _, f := range c.Files {
+		if !strings.Contains(f.Target, "%slug%") {
+			return fmt.Errorf("target %q for source %q does not contain %%slug%%", f.Target, f.Source)
+		}
 	}
 	if c.RequestDelay < 0 {
 		return fmt.Errorf("requestDelay cannot be negative (got %s)", c.RequestDelay)

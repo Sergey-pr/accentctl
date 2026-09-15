@@ -109,3 +109,28 @@ func TestRequestDelay(t *testing.T) {
 		})
 	}
 }
+
+func TestTargetMustContainSlug(t *testing.T) {
+	for name, target := range map[string]string{
+		"missing placeholder": "localization/fr/%original_file_name%",
+		"empty target":        "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("ACCENT_API_KEY", "")
+			t.Setenv("ACCENT_API_URL", "")
+			cfg := `{
+  "apiUrl": "https://accent.test",
+  "apiKey": "key",
+  "files": [{"source": "localization/en/*.json", "target": "` + target + `"}]
+}`
+			if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), "%slug%") {
+				t.Errorf("err = %v, want the missing %%slug%% target error", err)
+			}
+		})
+	}
+}

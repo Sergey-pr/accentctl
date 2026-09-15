@@ -37,10 +37,6 @@ func runStatus(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		if _, err := helpers.LanguageSlugsFromFilesystem(file.Target); err != nil {
-			return err
-		}
-
 		for _, src := range sources {
 			docPath := helpers.DocumentName(src)
 			language := helpers.SourceLanguage(file, src)
