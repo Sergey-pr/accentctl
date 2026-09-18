@@ -3,6 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -850,6 +852,35 @@ func TestTargetWithoutSlugIsRejectedBeforeContactingServer(t *testing.T) {
 			err := run(nil, nil)
 			if err == nil || !strings.Contains(err.Error(), "%slug%") {
 				t.Fatalf("%s error = %v, want the missing %%slug%% target error", name, err)
+			}
+		})
+	}
+}
+
+func TestStatusDiffWithUnusableServerResponse(t *testing.T) {
+	tests := []struct {
+		name, body       string
+		toPush, toDelete int
+	}{
+		{"malformed is skipped", `not json`, 0, 0},
+		{"non-object means no keys", `["a"]`, 2, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			t.Cleanup(srv.Close)
+			t.Chdir(t.TempDir())
+			writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
+
+			client := api.New(srv.URL, fakeAPIKey, false, 0)
+			toPush, toDelete, err := diffWithAccent(client, filepath.Join("localization", "en", "app.json"), "app", "json", "en")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if toPush != tt.toPush || toDelete != tt.toDelete {
+				t.Errorf("diffWithAccent = (push %d, delete %d), want (%d, %d)", toPush, toDelete, tt.toPush, tt.toDelete)
 			}
 		})
 	}

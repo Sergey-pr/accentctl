@@ -76,10 +76,7 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 	if err != nil {
 		return 0, 0, err
 	}
-	localNodes := helpers.CollectNodes(localObj, nil)
-	localSet := helpers.NodeSet(localNodes)
-
-	accentSet := map[string]bool{}
+	var serverNodes []helpers.NodeEntry
 	if len(existingData) > 0 {
 		accObj, err := helpers.ParseJSONObject(existingData)
 		if err != nil {
@@ -87,21 +84,12 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 			return 0, 0, nil
 		}
 		if accObj != nil {
-			accentSet = helpers.NodeSet(helpers.CollectNodes(accObj, nil))
+			serverNodes = helpers.CollectNodes(accObj, nil)
 		}
 	}
 
-	for _, l := range localNodes {
-		if !accentSet[helpers.NodeKey(l.Path)] {
-			toPush++
-		}
-	}
-	for k := range accentSet {
-		if !localSet[k] {
-			toDelete++
-		}
-	}
-	return toPush, toDelete, nil
+	added, removed := helpers.DiffNodes(helpers.CollectNodes(localObj, nil), serverNodes)
+	return len(added), len(removed), nil
 }
 
 func printFileStatus(path, language string, toPush, toDelete int) {

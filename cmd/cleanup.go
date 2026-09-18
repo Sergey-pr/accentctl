@@ -81,14 +81,7 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 		return err
 	}
 	localNodes := helpers.CollectNodes(localObj, nil)
-	localSet := helpers.NodeSet(localNodes)
-
-	var orphaned []helpers.NodeEntry
-	for _, n := range helpers.ServerNodes(existingData) {
-		if !localSet[helpers.NodeKey(n.Path)] {
-			orphaned = append(orphaned, n)
-		}
-	}
+	_, orphaned := helpers.DiffNodes(localNodes, helpers.ServerNodes(existingData))
 	if len(orphaned) == 0 {
 		output.Info(fmt.Sprintf("%s: no orphaned keys", src))
 		return nil

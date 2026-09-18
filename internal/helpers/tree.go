@@ -42,6 +42,24 @@ func CollectNodes(obj *JSONObject, prefix []string) []NodeEntry {
 	return out
 }
 
+// DiffNodes returns local nodes missing from server and server nodes missing
+// from local, each in input order. Values are not compared, only paths.
+func DiffNodes(local, server []NodeEntry) (added, removed []NodeEntry) {
+	localSet := NodeSet(local)
+	serverSet := NodeSet(server)
+	for _, n := range local {
+		if !serverSet[NodeKey(n.Path)] {
+			added = append(added, n)
+		}
+	}
+	for _, n := range server {
+		if !localSet[NodeKey(n.Path)] {
+			removed = append(removed, n)
+		}
+	}
+	return added, removed
+}
+
 // ServerNodes parses data exported from Accent, treating anything that is not
 // a JSON object as an empty key set.
 func ServerNodes(data []byte) []NodeEntry {
@@ -162,12 +180,7 @@ func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int
 	}
 
 	existingNodes := ServerNodes(existingData)
-	existingSet := NodeSet(existingNodes)
-	for _, n := range CollectNodes(localObj, nil) {
-		if !existingSet[NodeKey(n.Path)] {
-			newNodes = append(newNodes, n)
-		}
-	}
+	newNodes, _ = DiffNodes(CollectNodes(localObj, nil), existingNodes)
 	if len(newNodes) == 0 {
 		return nil, nil, nil
 	}

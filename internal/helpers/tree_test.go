@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -139,6 +141,96 @@ func TestMarshalNodes_empty(t *testing.T) {
 	}
 	if string(got) != "{}" {
 		t.Errorf("want {}, got %s", got)
+	}
+}
+
+func nodesAt(paths ...string) []NodeEntry {
+	var out []NodeEntry
+	for _, p := range paths {
+		out = append(out, NodeEntry{Path: strings.Split(p, "."), Value: json.RawMessage(`"x"`)})
+	}
+	return out
+}
+
+func nodePaths(nodes []NodeEntry) []string {
+	var out []string
+	for _, n := range nodes {
+		out = append(out, strings.Join(n.Path, "."))
+	}
+	return out
+}
+
+func TestDiffNodes(t *testing.T) {
+	tests := []struct {
+		name                string
+		local, server       []NodeEntry
+		wantAdded, wantGone []string
+	}{
+		{name: "both empty"},
+		{name: "server empty", local: nodesAt("a", "b"), wantAdded: []string{"a", "b"}},
+		{name: "local empty", server: nodesAt("a", "b"), wantGone: []string{"a", "b"}},
+		{name: "identical", local: nodesAt("a", "b"), server: nodesAt("b", "a")},
+		{
+			name:      "both sides keep input order",
+			local:     nodesAt("z", "shared", "a"),
+			server:    nodesAt("y", "shared", "b"),
+			wantAdded: []string{"z", "a"},
+			wantGone:  []string{"y", "b"},
+		},
+		{
+			name:      "nested paths compare whole path",
+			local:     nodesAt("menu.open", "menu.close"),
+			server:    nodesAt("menu.open", "menu"),
+			wantAdded: []string{"menu.close"},
+			wantGone:  []string{"menu"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			added, removed := DiffNodes(tt.local, tt.server)
+			if got := nodePaths(added); !slices.Equal(got, tt.wantAdded) {
+				t.Errorf("added = %v, want %v", got, tt.wantAdded)
+			}
+			if got := nodePaths(removed); !slices.Equal(got, tt.wantGone) {
+				t.Errorf("removed = %v, want %v", got, tt.wantGone)
+			}
+		})
+	}
+}
+
+func TestDiffNodes_ignoresValues(t *testing.T) {
+	local := []NodeEntry{{Path: []string{"a"}, Value: json.RawMessage(`"new"`)}}
+	server := []NodeEntry{{Path: []string{"a"}, Value: json.RawMessage(`"old"`)}}
+	if added, removed := DiffNodes(local, server); added != nil || removed != nil {
+		t.Errorf("DiffNodes = (%v, %v), want (nil, nil)", added, removed)
+	}
+}
+
+func TestServerNodes_unusableDataMeansNoKeys(t *testing.T) {
+	for name, data := range map[string]string{
+		"empty":         ``,
+		"malformed":     `not json`,
+		"not an object": `["a"]`,
+	} {
+		if got := ServerNodes([]byte(data)); got != nil {
+			t.Errorf("%s: ServerNodes = %v, want nil", name, got)
+		}
+	}
+}
+
+func TestNewKeysChunksWithNodes_malformedServerDataTreatsAllAsNew(t *testing.T) {
+	local := writeTempJSON(t, `{"a":"1","b":"2"}`)
+	paths, newNodes, err := NewKeysChunksWithNodes(local, []byte(`not json`), 250)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		for _, p := range paths {
+			_ = os.Remove(p)
+		}
+	})
+	if len(newNodes) != 2 {
+		t.Errorf("newNodes = %d, want 2", len(newNodes))
 	}
 }
 
