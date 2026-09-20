@@ -112,6 +112,26 @@ func TestCollectNodes_empty(t *testing.T) {
 	}
 }
 
+func TestParseJSONObject_repeatedKeyKeepsFirstPositionAndLastValue(t *testing.T) {
+	obj := mustParse(t, `{"a":"1","x":"2","a":"3"}`)
+	if want := []string{"a", "x"}; !slices.Equal(obj.Keys, want) {
+		t.Errorf("Keys = %v, want %v", obj.Keys, want)
+	}
+	if got := string(obj.Values["a"]); got != `"3"` {
+		t.Errorf("Values[a] = %s, want \"3\"", got)
+	}
+}
+
+func TestCollectNodes_repeatedKeyYieldsOneNode(t *testing.T) {
+	nodes := CollectNodes(mustParse(t, `{"a":"1","a":"2"}`), nil)
+	if len(nodes) != 1 {
+		t.Fatalf("got %d nodes, want 1: %v", len(nodes), nodePaths(nodes))
+	}
+	if got := string(nodes[0].Value); got != `"2"` {
+		t.Errorf("value = %s, want \"2\"", got)
+	}
+}
+
 func TestCollectNodes_preservesOrder(t *testing.T) {
 	obj := mustParse(t, `{"z":"1","a":"2","m":"3"}`)
 	nodes := CollectNodes(obj, nil)

@@ -885,3 +885,41 @@ func TestStatusDiffWithUnusableServerResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestStatusCountsRepeatedServerKeyOnce(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"a":"A","x":"X1","x":"X2"}`))
+	}))
+	t.Cleanup(srv.Close)
+	t.Chdir(t.TempDir())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+
+	client := api.New(srv.URL, fakeAPIKey, false, 0)
+	toPush, toDelete, err := diffWithAccent(client, filepath.Join("localization", "en", "app.json"), "app", "json", "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if toPush != 0 || toDelete != 1 {
+		t.Errorf("diffWithAccent = (push %d, delete %d), want (0, 1)", toPush, toDelete)
+	}
+}
+
+func TestSyncUploadsRepeatedLocalKeyOnce(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en")
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A","a":"B"}`)
+
+	if err := runSync(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if keys := fake.keys("app"); len(keys) != 1 {
+		t.Errorf("server keys = %v, want exactly one", keys)
+	}
+	if got := fake.get("app", "en", "a"); got != "B" {
+		t.Errorf("server value = %q, want the last value \"B\"", got)
+	}
+	if counts := keyCounts(fake.callsTo("sync")); len(counts) != 1 || counts[0] != 1 {
+		t.Errorf("upload key counts = %v, want [1]", counts)
+	}
+}

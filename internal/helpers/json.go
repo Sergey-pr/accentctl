@@ -32,6 +32,7 @@ func ReadJSONObjectFile(path string) (*JSONObject, error) {
 
 // ParseJSONObject parses a JSON object preserving insertion order. It returns
 // (nil, nil) for valid JSON that is not an object; CollectNodes uses that to tell nested objects from leaves.
+// A repeated key keeps its first position and its last value, as encoding/json does.
 func ParseJSONObject(data []byte) (*JSONObject, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 
@@ -55,7 +56,9 @@ func ParseJSONObject(data []byte) (*JSONObject, error) {
 		if err := dec.Decode(&raw); err != nil {
 			return nil, err
 		}
-		obj.Keys = append(obj.Keys, key)
+		if _, seen := obj.Values[key]; !seen {
+			obj.Keys = append(obj.Keys, key)
+		}
 		obj.Values[key] = raw
 	}
 	return obj, nil
