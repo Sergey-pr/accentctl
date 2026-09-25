@@ -50,9 +50,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 		}
 
 		for _, src := range sources {
-			documentPath := helpers.DocumentName(src)
-			language := helpers.SourceLanguage(file, src)
-			if err := cleanupFileChunked(client, src, documentPath, file.Format, language); err != nil {
+			if err := cleanupFileChunked(client, helpers.SourceDocument(file, src)); err != nil {
 				return err
 			}
 		}
@@ -70,26 +68,26 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 
 // cleanupFileChunked deletes keys that exist in Accent but not locally. Each
 // smart-sync upload holds all local keys plus the orphans not yet removed, so one chunk of orphans drops per round.
-func cleanupFileChunked(client *api.Client, src, documentPath, format, language string) error {
-	existingData, err := serverExport(client, documentPath, format, language)
+func cleanupFileChunked(client *api.Client, doc helpers.Document) error {
+	existingData, err := serverExport(client, doc)
 	if err != nil {
-		return fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
+		return fmt.Errorf("%s: could not fetch existing keys: %w", doc.LocalPath, err)
 	}
 
-	localObj, err := helpers.ReadJSONObjectFile(src)
+	localObj, err := helpers.ReadJSONObjectFile(doc.LocalPath)
 	if err != nil {
 		return err
 	}
 	localNodes := helpers.CollectNodes(localObj, nil)
 	_, orphaned := helpers.DiffNodes(localNodes, helpers.ServerNodes(existingData))
 	if len(orphaned) == 0 {
-		output.Info(fmt.Sprintf("%s: no orphaned keys", src))
+		output.Info(fmt.Sprintf("%s: no orphaned keys", doc.LocalPath))
 		return nil
 	}
 
 	total := len(orphaned)
 	nChunks := helpers.ChunkCount(total, constants.ChunkSize)
-	output.Info(fmt.Sprintf("%s: removing %d orphaned keys in %d chunk(s)", src, total, nChunks))
+	output.Info(fmt.Sprintf("%s: removing %d orphaned keys in %d chunk(s)", doc.LocalPath, total, nChunks))
 
 	opts := api.SyncOptions{SyncType: "smart"}
 	for start := 0; start < total; start += constants.ChunkSize {
@@ -97,11 +95,11 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 		combined := slices.Concat(localNodes, orphaned[end:])
 		chunkNum := start/constants.ChunkSize + 1
 
-		err := helpers.WithTempNodeFile(src, combined, "accentctl-cleanup-*.json", func(tmpName string) error {
+		err := helpers.WithTempNodeFile(doc.LocalPath, combined, "accentctl-cleanup-*.json", func(tmpName string) error {
 			if verbose {
 				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
 			}
-			return syncChunk(client, src, documentPath, format, language, tmpName, chunkNum, nChunks, opts)
+			return syncChunk(client, doc, tmpName, chunkNum, nChunks, opts)
 		})
 		if err != nil {
 			return err
@@ -110,16 +108,16 @@ func cleanupFileChunked(client *api.Client, src, documentPath, format, language 
 	return nil
 }
 
-func syncChunk(client *api.Client, src, documentPath, format, language, tmpName string, chunkNum, nChunks int,
+func syncChunk(client *api.Client, doc helpers.Document, tmpName string, chunkNum, nChunks int,
 	opts api.SyncOptions) error {
-	err := client.Sync(tmpName, documentPath, format, language, opts)
+	err := client.Sync(tmpName, doc.Path, doc.Format, doc.Language, opts)
 	if err != nil {
-		return fmt.Errorf("%s chunk %d/%d: %w", src, chunkNum, nChunks, err)
+		return fmt.Errorf("%s chunk %d/%d: %w", doc.LocalPath, chunkNum, nChunks, err)
 	}
 	if verbose {
-		output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, chunkNum, nChunks))
+		output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", doc.LocalPath, chunkNum, nChunks))
 	} else {
-		output.ChunkProgress(src, chunkNum, nChunks)
+		output.ChunkProgress(doc.LocalPath, chunkNum, nChunks)
 	}
 	return nil
 }

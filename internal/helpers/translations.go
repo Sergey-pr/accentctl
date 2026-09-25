@@ -13,7 +13,7 @@ import (
 
 // ForEachTranslationFile calls fn for every target-language file that exists
 // locally, skipping the source language.
-func ForEachTranslationFile(file config.File, fn func(localPath, docPath, slug string) error) error {
+func ForEachTranslationFile(file config.File, fn func(doc Document) error) error {
 	slugs, err := LanguageSlugsFromFilesystem(file.Target)
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func ForEachTranslationFile(file config.File, fn func(localPath, docPath, slug s
 			if _, err := os.Stat(localPath); err != nil {
 				continue
 			}
-			if err := fn(localPath, DocumentName(src), slug); err != nil {
+			if err := fn(Document{LocalPath: localPath, Path: DocumentName(src), Format: file.Format, Language: slug}); err != nil {
 				return err
 			}
 		}
@@ -44,25 +44,25 @@ func ForEachTranslationFile(file config.File, fn func(localPath, docPath, slug s
 // AddAllTranslations pushes every local translation without diffing against the
 // server. A "passive" merge keeps reviewer-corrected strings, so recovery cannot clobber them.
 func AddAllTranslations(client *api.Client, file config.File, mergeType string, verbose bool) error {
-	return ForEachTranslationFile(file, func(localPath, docPath, slug string) error {
-		obj, err := ReadJSONObjectFile(localPath)
+	return ForEachTranslationFile(file, func(doc Document) error {
+		obj, err := ReadJSONObjectFile(doc.LocalPath)
 		if err != nil {
 			return err
 		}
 		nodes := CollectNodes(obj, nil)
 		if len(nodes) == 0 {
-			output.Info(fmt.Sprintf("%s: no translations", localPath))
+			output.Info(fmt.Sprintf("%s: no translations", doc.LocalPath))
 			return nil
 		}
-		return uploadTranslationChunks(client, nodes, localPath, docPath, file.Format, slug, mergeType, verbose)
+		return uploadTranslationChunks(client, nodes, doc, mergeType, verbose)
 	})
 }
 
 // AddTranslationsForNewKeys force-pushes translations for freshly synced source keys.
 // Accent creates each new key in every language holding the source text, so a plain diff sees nothing to push.
 func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet map[string]bool, verbose bool) error {
-	return ForEachTranslationFile(file, func(localPath, docPath, slug string) error {
-		obj, err := ReadJSONObjectFile(localPath)
+	return ForEachTranslationFile(file, func(doc Document) error {
+		obj, err := ReadJSONObjectFile(doc.LocalPath)
 		if err != nil {
 			return err
 		}
@@ -73,39 +73,39 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 			}
 		}
 		if len(nodes) == 0 {
-			output.Info(fmt.Sprintf("%s: no new translations", localPath))
+			output.Info(fmt.Sprintf("%s: no new translations", doc.LocalPath))
 			return nil
 		}
-		return uploadTranslationChunks(client, nodes, localPath, docPath, file.Format, slug, "force", verbose)
+		return uploadTranslationChunks(client, nodes, doc, "force", verbose)
 	})
 }
 
 // uploadTranslationChunks sends nodes to /add-translations in disjoint batches:
 // a merge only touches keys present in the upload, so chunks need not accumulate.
-func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, localPath, docPath, format, slug, mergeType string, verbose bool) error {
+func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, doc Document, mergeType string, verbose bool) error {
 	nChunks := ChunkCount(len(nodes), constants.ChunkSize)
-	output.Info(fmt.Sprintf("%s: %d translations -> %d chunk(s)", localPath, len(nodes), nChunks))
+	output.Info(fmt.Sprintf("%s: %d translations -> %d chunk(s)", doc.LocalPath, len(nodes), nChunks))
 
 	opts := api.AddTranslationsOptions{MergeType: mergeType}
 	for start := 0; start < len(nodes); start += constants.ChunkSize {
 		end := min(start+constants.ChunkSize, len(nodes))
 		chunkNum := start/constants.ChunkSize + 1
 
-		err := WithTempNodeFile(localPath, nodes[start:end], "accentctl-trans-*.json", func(tmpName string) error {
+		err := WithTempNodeFile(doc.LocalPath, nodes[start:end], "accentctl-trans-*.json", func(tmpName string) error {
 			if verbose {
 				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
 			}
-			err := client.AddTranslations(tmpName, docPath, format, slug, opts)
+			err := client.AddTranslations(tmpName, doc.Path, doc.Format, doc.Language, opts)
 			if errors.Is(err, api.ErrNotFound) {
 				return err
 			}
 			if err != nil {
-				return fmt.Errorf("%s chunk %d/%d: %w", localPath, chunkNum, nChunks, err)
+				return fmt.Errorf("%s chunk %d/%d: %w", doc.LocalPath, chunkNum, nChunks, err)
 			}
 			if verbose {
-				output.FileAddTranslations(fmt.Sprintf("%s [chunk %d/%d]", localPath, chunkNum, nChunks))
+				output.FileAddTranslations(fmt.Sprintf("%s [chunk %d/%d]", doc.LocalPath, chunkNum, nChunks))
 			} else {
-				output.ChunkProgress(localPath, chunkNum, nChunks)
+				output.ChunkProgress(doc.LocalPath, chunkNum, nChunks)
 			}
 			return nil
 		})

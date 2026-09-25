@@ -27,6 +27,24 @@ func SourceLanguage(file config.File, src string) string {
 	return LanguageFromPath(filepath.ToSlash(src), file.Target)
 }
 
+// Document is a local file together with the Accent document and language it maps to.
+type Document struct {
+	LocalPath string
+	Path      string
+	Format    string
+	Language  string
+}
+
+// SourceDocument describes the source file src of file.
+func SourceDocument(file config.File, src string) Document {
+	return Document{
+		LocalPath: src,
+		Path:      DocumentName(src),
+		Format:    file.Format,
+		Language:  SourceLanguage(file, src),
+	}
+}
+
 // ApplyTargetTemplate fills %slug%, %document_path% and %original_file_name% in
 // the target pattern. The file name keeps the source's own extension, so non-JSON pulls land in the right file.
 func ApplyTargetTemplate(target, language, src string) string {

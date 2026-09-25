@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sergey-pr/accentctl/internal/config"
 )
 
 func TestDocumentName(t *testing.T) {
@@ -22,6 +24,21 @@ func TestDocumentName(t *testing.T) {
 		if got := DocumentName(tt.input); got != tt.want {
 			t.Errorf("DocumentName(%q) = %q, want %q", tt.input, got, tt.want)
 		}
+	}
+}
+
+func TestSourceDocument(t *testing.T) {
+	file := config.File{Format: "json", Target: "localization/%slug%/%original_file_name%"}
+	src := filepath.Join("localization", "en", "app.json")
+
+	want := Document{LocalPath: src, Path: "app", Format: "json", Language: "en"}
+	if got := SourceDocument(file, src); got != want {
+		t.Errorf("SourceDocument = %+v, want %+v", got, want)
+	}
+
+	file.Language = "de"
+	if got := SourceDocument(file, src).Language; got != "de" {
+		t.Errorf("Language = %q, want the configured \"de\"", got)
 	}
 }
 

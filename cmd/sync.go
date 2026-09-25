@@ -133,16 +133,15 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 
 		keySet := map[string]bool{}
 		for _, src := range sources {
-			documentPath := helpers.DocumentName(src)
-			language := helpers.SourceLanguage(file, src)
+			doc := helpers.SourceDocument(file, src)
 
 			if syncForce {
-				if err := deleteAllKeysChunked(client, src, documentPath, file.Format, language); err != nil {
+				if err := deleteAllKeysChunked(client, doc); err != nil {
 					return progress, err
 				}
 			}
 
-			newNodes, uploaded, err := syncFileChunked(client, src, documentPath, file.Format, language, syncOrderBy, syncForce)
+			newNodes, uploaded, err := syncFileChunked(client, doc, syncOrderBy, syncForce)
 			if uploaded {
 				progress.keysUploaded = true
 			}
@@ -237,30 +236,30 @@ func confirmForceSync(cfg *config.Config) error {
 
 // deleteAllKeysChunked wipes a document by uploading ever-smaller files via
 // smart sync, ending with an empty object that clears the last keys.
-func deleteAllKeysChunked(client *api.Client, src, documentPath, format, language string) error {
-	existingData, err := serverExport(client, documentPath, format, language)
+func deleteAllKeysChunked(client *api.Client, doc helpers.Document) error {
+	existingData, err := serverExport(client, doc)
 	if err != nil {
-		return fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
+		return fmt.Errorf("%s: could not fetch existing keys: %w", doc.LocalPath, err)
 	}
 
 	allNodes := helpers.ServerNodes(existingData)
 	if len(allNodes) == 0 {
-		output.Info(fmt.Sprintf("%s: no keys on server", src))
+		output.Info(fmt.Sprintf("%s: no keys on server", doc.LocalPath))
 		return nil
 	}
 
 	total := len(allNodes)
 	nChunks := helpers.ChunkCount(total, constants.ChunkSize)
-	output.Info(fmt.Sprintf("%s: deleting %d keys in %d chunk(s)", src, total, nChunks))
+	output.Info(fmt.Sprintf("%s: deleting %d keys in %d chunk(s)", doc.LocalPath, total, nChunks))
 
 	opts := api.SyncOptions{SyncType: "smart"}
 	for chunk := 1; chunk <= nChunks; chunk++ {
 		remaining := allNodes[min(chunk*constants.ChunkSize, total):]
-		err := helpers.WithTempNodeFile(src, remaining, "accentctl-del-*.json", func(tmpName string) error {
+		err := helpers.WithTempNodeFile(doc.LocalPath, remaining, "accentctl-del-*.json", func(tmpName string) error {
 			if verbose {
 				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunk, nChunks, tmpName))
 			}
-			return syncChunk(client, src, documentPath, format, language, tmpName, chunk, nChunks, opts)
+			return syncChunk(client, doc, tmpName, chunk, nChunks, opts)
 		})
 		if err != nil {
 			return err
@@ -271,51 +270,51 @@ func deleteAllKeysChunked(client *api.Client, src, documentPath, format, languag
 
 // syncFileChunked uploads keys missing from the server in cumulative chunks;
 // force treats every local key as new. uploaded stays true next to an error so the caller knows keys already landed.
-func syncFileChunked(client *api.Client, src, documentPath, format, language, orderBy string, force bool) (newNodes []helpers.NodeEntry, uploaded bool, err error) {
+func syncFileChunked(client *api.Client, doc helpers.Document, orderBy string, force bool) (newNodes []helpers.NodeEntry, uploaded bool, err error) {
 	var existing []byte
 	if !force {
-		existing, err = serverExport(client, documentPath, format, language)
+		existing, err = serverExport(client, doc)
 		if err != nil {
-			return nil, false, fmt.Errorf("%s: could not fetch existing keys: %w", src, err)
+			return nil, false, fmt.Errorf("%s: could not fetch existing keys: %w", doc.LocalPath, err)
 		}
 	}
 
-	chunks, newNodes, err := helpers.NewKeysChunksWithNodes(src, existing, constants.ChunkSize)
+	chunks, newNodes, err := helpers.NewKeysChunksWithNodes(doc.LocalPath, existing, constants.ChunkSize)
 	if err != nil {
-		return nil, false, fmt.Errorf("%s: chunking failed: %w", src, err)
+		return nil, false, fmt.Errorf("%s: chunking failed: %w", doc.LocalPath, err)
 	}
 
 	defer func() {
 		for _, p := range chunks {
-			if p != src {
+			if p != doc.LocalPath {
 				_ = os.Remove(p)
 			}
 		}
 	}()
 
 	if len(chunks) == 0 {
-		output.Info(fmt.Sprintf("%s: no new keys", src))
+		output.Info(fmt.Sprintf("%s: no new keys", doc.LocalPath))
 		return nil, false, nil
 	}
 
-	output.Info(fmt.Sprintf("%s: %d keys -> %d chunk(s)", src, len(newNodes), len(chunks)))
+	output.Info(fmt.Sprintf("%s: %d keys -> %d chunk(s)", doc.LocalPath, len(newNodes), len(chunks)))
 
 	opts := api.SyncOptions{SyncType: "passive", OrderBy: orderBy}
 
-	output.Section(fmt.Sprintf("Syncing %s - %d chunk(s)", src, len(chunks)))
+	output.Section(fmt.Sprintf("Syncing %s - %d chunk(s)", doc.LocalPath, len(chunks)))
 	for i, chunk := range chunks {
 		if verbose {
 			output.Info(fmt.Sprintf("chunk %d/%d: %s", i+1, len(chunks), chunk))
 		}
-		err := client.Sync(chunk, documentPath, format, language, opts)
+		err := client.Sync(chunk, doc.Path, doc.Format, doc.Language, opts)
 		if err != nil {
-			return nil, uploaded, fmt.Errorf("%s chunk %d/%d: %w", src, i+1, len(chunks), err)
+			return nil, uploaded, fmt.Errorf("%s chunk %d/%d: %w", doc.LocalPath, i+1, len(chunks), err)
 		}
 		uploaded = true
 		if verbose {
-			output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", src, i+1, len(chunks)))
+			output.FileSync(fmt.Sprintf("%s [chunk %d/%d]", doc.LocalPath, i+1, len(chunks)))
 		} else {
-			output.ChunkProgress(src, i+1, len(chunks))
+			output.ChunkProgress(doc.LocalPath, i+1, len(chunks))
 		}
 	}
 	return newNodes, uploaded, nil

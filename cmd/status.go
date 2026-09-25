@@ -38,22 +38,20 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		}
 
 		for _, src := range sources {
-			docPath := helpers.DocumentName(src)
-			language := helpers.SourceLanguage(file, src)
-
-			toPush, toDelete, err := diffWithAccent(client, src, docPath, file.Format, language)
+			doc := helpers.SourceDocument(file, src)
+			toPush, toDelete, err := diffWithAccent(client, doc)
 			if err != nil {
 				return err
 			}
-			printFileStatus(src, language, toPush, toDelete)
+			printFileStatus(doc.LocalPath, doc.Language, toPush, toDelete)
 		}
 
-		err = helpers.ForEachTranslationFile(file, func(localPath, docPath, slug string) error {
-			toPush, toDelete, err := diffWithAccent(client, localPath, docPath, file.Format, slug)
+		err = helpers.ForEachTranslationFile(file, func(doc helpers.Document) error {
+			toPush, toDelete, err := diffWithAccent(client, doc)
 			if err != nil {
 				return err
 			}
-			printFileStatus(localPath, slug, toPush, toDelete)
+			printFileStatus(doc.LocalPath, doc.Language, toPush, toDelete)
 			return nil
 		})
 		if err != nil {
@@ -66,13 +64,13 @@ func runStatus(_ *cobra.Command, _ []string) error {
 
 // diffWithAccent counts keys to push (local but not in Accent) and keys to
 // delete (in Accent but not local) for one file.
-func diffWithAccent(client *api.Client, localPath, docPath, format, language string) (toPush, toDelete int, err error) {
-	existingData, err := serverExport(client, docPath, format, language)
+func diffWithAccent(client *api.Client, doc helpers.Document) (toPush, toDelete int, err error) {
+	existingData, err := serverExport(client, doc)
 	if err != nil {
-		return 0, 0, fmt.Errorf("%s: %w", localPath, err)
+		return 0, 0, fmt.Errorf("%s: %w", doc.LocalPath, err)
 	}
 
-	localObj, err := helpers.ReadJSONObjectFile(localPath)
+	localObj, err := helpers.ReadJSONObjectFile(doc.LocalPath)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -80,7 +78,7 @@ func diffWithAccent(client *api.Client, localPath, docPath, format, language str
 	if len(existingData) > 0 {
 		accObj, err := helpers.ParseJSONObject(existingData)
 		if err != nil {
-			output.Info(fmt.Sprintf("%s: skipping malformed server response: %v", localPath, err))
+			output.Info(fmt.Sprintf("%s: skipping malformed server response: %v", doc.LocalPath, err))
 			return 0, 0, nil
 		}
 		if accObj != nil {

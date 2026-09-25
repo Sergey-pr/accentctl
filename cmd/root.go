@@ -9,6 +9,7 @@ import (
 
 	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
+	"github.com/sergey-pr/accentctl/internal/helpers"
 )
 
 var verbose bool
@@ -40,8 +41,8 @@ func newClient(cfg *config.Config) *api.Client {
 
 // serverExport returns a document's current bytes, treating a missing document
 // (ErrNotFound) as empty since sync, cleanup and status all diff against zero keys.
-func serverExport(client *api.Client, documentPath, format, language string) ([]byte, error) {
-	data, err := client.ExportBytes(documentPath, format, language)
+func serverExport(client *api.Client, doc helpers.Document) ([]byte, error) {
+	data, err := client.ExportBytes(doc.Path, doc.Format, doc.Language)
 	if errors.Is(err, api.ErrNotFound) {
 		return nil, nil
 	}

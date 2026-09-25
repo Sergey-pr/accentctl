@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
+	"github.com/sergey-pr/accentctl/internal/helpers"
 )
 
 // setupProject chdirs into a fresh temp dir and writes an accent.json pointing
@@ -412,7 +413,7 @@ func interruptSyncAfterKeyUpload(t *testing.T, fake *fakeAccent) {
 	t.Helper()
 	client := api.New(fake.URL(), fakeAPIKey, false, 0)
 	src := filepath.Join("localization", "en", "app.json")
-	if _, _, err := syncFileChunked(client, src, "app", "json", "en", "key", false); err != nil {
+	if _, _, err := syncFileChunked(client, helpers.Document{LocalPath: src, Path: "app", Format: "json", Language: "en"}, "key", false); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -803,7 +804,7 @@ func TestStatusCountsPushAndDelete(t *testing.T) {
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr","b":"B-fr"}`)
 
 	client := api.New(fake.URL(), fakeAPIKey, false, 0)
-	toPush, toDelete, err := diffWithAccent(client, filepath.Join("localization", "en", "app.json"), "app", "json", "en")
+	toPush, toDelete, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -875,7 +876,7 @@ func TestStatusDiffWithUnusableServerResponse(t *testing.T) {
 			writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
 
 			client := api.New(srv.URL, fakeAPIKey, false, 0)
-			toPush, toDelete, err := diffWithAccent(client, filepath.Join("localization", "en", "app.json"), "app", "json", "en")
+			toPush, toDelete, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -895,7 +896,7 @@ func TestStatusCountsRepeatedServerKeyOnce(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 
 	client := api.New(srv.URL, fakeAPIKey, false, 0)
-	toPush, toDelete, err := diffWithAccent(client, filepath.Join("localization", "en", "app.json"), "app", "json", "en")
+	toPush, toDelete, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
 	if err != nil {
 		t.Fatal(err)
 	}
