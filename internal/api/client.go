@@ -86,49 +86,42 @@ type ExportOptions struct {
 
 // Sync uploads a file and syncs it with Accent.
 func (c *Client) Sync(filePath, documentPath, format, language string, opts SyncOptions) error {
-	endpoint := c.apiURL + "/sync"
-
-	body, contentType, err := buildMultipart(func(w *multipart.Writer) error {
-		if err := writeFile(w, "file", filePath); err != nil {
-			return err
-		}
-		_ = w.WriteField("document_path", documentPath)
-		_ = w.WriteField("document_format", format)
+	return c.uploadDocument("/sync", filePath, documentPath, format, func(w *multipart.Writer) {
 		if language != "" {
 			_ = w.WriteField("language", language)
 		}
 		if opts.SyncType != "" {
 			_ = w.WriteField("sync_type", opts.SyncType)
 		}
-		return nil
 	})
-	if err != nil {
-		return err
-	}
-
-	return c.postOperation(endpoint, body, contentType)
 }
 
 // AddTranslations uploads a translation file to Accent.
 func (c *Client) AddTranslations(filePath, documentPath, format, language string, opts AddTranslationsOptions) error {
-	endpoint := c.apiURL + "/add-translations"
+	return c.uploadDocument("/add-translations", filePath, documentPath, format, func(w *multipart.Writer) {
+		_ = w.WriteField("language", language)
+		if opts.MergeType != "" {
+			_ = w.WriteField("merge_type", opts.MergeType)
+		}
+	})
+}
+
+// uploadDocument posts filePath with its document fields to path; extra adds
+// the fields specific to each endpoint.
+func (c *Client) uploadDocument(path, filePath, documentPath, format string, extra func(*multipart.Writer)) error {
 	body, contentType, err := buildMultipart(func(w *multipart.Writer) error {
 		if err := writeFile(w, "file", filePath); err != nil {
 			return err
 		}
 		_ = w.WriteField("document_path", documentPath)
 		_ = w.WriteField("document_format", format)
-		_ = w.WriteField("language", language)
-		if opts.MergeType != "" {
-			_ = w.WriteField("merge_type", opts.MergeType)
-		}
+		extra(w)
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-
-	return c.postOperation(endpoint, body, contentType)
+	return c.postOperation(c.apiURL+path, body, contentType)
 }
 
 // exportRequest performs GET /export and returns the raw response.

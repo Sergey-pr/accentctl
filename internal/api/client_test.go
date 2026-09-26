@@ -2,10 +2,12 @@ package api
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -48,6 +50,102 @@ func TestSyncAcceptsEmptyResponseBody(t *testing.T) {
 	}
 	if gotSyncType != "smart" {
 		t.Errorf("sync_type = %q, want %q", gotSyncType, "smart")
+	}
+}
+
+func TestUploadsSendExpectedRequest(t *testing.T) {
+	tests := []struct {
+		name       string
+		call       func(c *Client, file string) error
+		wantPath   string
+		wantFields map[string][]string
+	}{
+		{
+			name: "sync",
+			call: func(c *Client, file string) error {
+				return c.Sync(file, "app", "json", "en", SyncOptions{SyncType: "passive", OrderBy: "key"})
+			},
+			wantPath:   "/sync",
+			wantFields: map[string][]string{"document_path": {"app"}, "document_format": {"json"}, "language": {"en"}, "sync_type": {"passive"}},
+		},
+		{
+			name: "sync omits empty language and sync_type",
+			call: func(c *Client, file string) error {
+				return c.Sync(file, "app", "json", "", SyncOptions{})
+			},
+			wantPath:   "/sync",
+			wantFields: map[string][]string{"document_path": {"app"}, "document_format": {"json"}},
+		},
+		{
+			name: "add-translations",
+			call: func(c *Client, file string) error {
+				return c.AddTranslations(file, "app", "json", "fr", AddTranslationsOptions{MergeType: "force"})
+			},
+			wantPath:   "/add-translations",
+			wantFields: map[string][]string{"document_path": {"app"}, "document_format": {"json"}, "language": {"fr"}, "merge_type": {"force"}},
+		},
+		{
+			name: "add-translations sends empty language but omits empty merge_type",
+			call: func(c *Client, file string) error {
+				return c.AddTranslations(file, "app", "json", "", AddTranslationsOptions{})
+			},
+			wantPath:   "/add-translations",
+			wantFields: map[string][]string{"document_path": {"app"}, "document_format": {"json"}, "language": {""}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var method, path, fileName, fileBody string
+			var fields map[string][]string
+			client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+				if err := r.ParseMultipartForm(1 << 20); err != nil {
+					t.Error(err)
+					return
+				}
+				method, path, fields = r.Method, r.URL.Path, r.MultipartForm.Value
+				f, hdr, err := r.FormFile("file")
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer func() {
+					_ = f.Close()
+				}()
+				body, _ := io.ReadAll(f)
+				fileName, fileBody = hdr.Filename, string(body)
+			})
+
+			if err := tt.call(client, writeTempJSON(t, `{"a":"A"}`)); err != nil {
+				t.Fatal(err)
+			}
+			if method != http.MethodPost || path != tt.wantPath {
+				t.Errorf("request = %s %s, want POST %s", method, path, tt.wantPath)
+			}
+			if fileName != "file.json" || fileBody != `{"a":"A"}` {
+				t.Errorf("file = %q %q, want \"file.json\" with the local contents", fileName, fileBody)
+			}
+			if !reflect.DeepEqual(fields, tt.wantFields) {
+				t.Errorf("fields = %v, want %v", fields, tt.wantFields)
+			}
+		})
+	}
+}
+
+func TestUploadWithMissingFileSendsNoRequest(t *testing.T) {
+	called := false
+	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+	})
+	missing := filepath.Join(t.TempDir(), "missing.json")
+
+	if err := client.Sync(missing, "app", "json", "en", SyncOptions{}); err == nil {
+		t.Error("Sync with a missing file succeeded, want an error")
+	}
+	if err := client.AddTranslations(missing, "app", "json", "fr", AddTranslationsOptions{}); err == nil {
+		t.Error("AddTranslations with a missing file succeeded, want an error")
+	}
+	if called {
+		t.Error("a request reached the server, want none")
 	}
 }
 
