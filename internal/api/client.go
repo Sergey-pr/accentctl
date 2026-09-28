@@ -71,7 +71,6 @@ func (t *verboseTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 // SyncOptions controls the sync operation.
 type SyncOptions struct {
 	SyncType string // smart | passive
-	OrderBy  string // index | key-asc
 }
 
 // AddTranslationsOptions controls the add-translations operation.

@@ -62,6 +62,25 @@ func requireJSONFormat(cfg *config.Config, command string) error {
 	return nil
 }
 
+// requireSourceLanguages rejects source files whose language cannot be resolved.
+// Accent's /sync answers 422 without one, so this runs before any request.
+func requireSourceLanguages(cfg *config.Config) error {
+	for _, file := range cfg.Files {
+		sources, err := file.Sources()
+		if err != nil {
+			return err
+		}
+		for _, src := range sources {
+			if helpers.SourceLanguage(file, src) == "" {
+				return fmt.Errorf(
+					"cannot determine the source language of %s: set \"language\" for this file or make its path match target %q",
+					src, file.Target)
+			}
+		}
+	}
+	return nil
+}
+
 func init() {
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Log HTTP requests and responses")
 

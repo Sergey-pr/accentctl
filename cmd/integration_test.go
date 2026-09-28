@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
+	"github.com/sergey-pr/accentctl/internal/config"
 	"github.com/sergey-pr/accentctl/internal/helpers"
 )
 
@@ -413,7 +414,7 @@ func interruptSyncAfterKeyUpload(t *testing.T, fake *fakeAccent) {
 	t.Helper()
 	client := api.New(fake.URL(), fakeAPIKey, false, 0)
 	src := filepath.Join("localization", "en", "app.json")
-	if _, _, err := syncFileChunked(client, helpers.Document{LocalPath: src, Path: "app", Format: "json", Language: "en"}, "key", false); err != nil {
+	if _, _, err := syncFileChunked(client, helpers.Document{LocalPath: src, Path: "app", Format: "json", Language: "en"}, false); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -922,5 +923,64 @@ func TestSyncUploadsRepeatedLocalKeyOnce(t *testing.T) {
 	}
 	if counts := keyCounts(fake.callsTo("sync")); len(counts) != 1 || counts[0] != 1 {
 		t.Errorf("upload key counts = %v, want [1]", counts)
+	}
+}
+
+func TestUnresolvableSourceLanguageIsRejectedBeforeContactingServer(t *testing.T) {
+	tests := []struct {
+		name  string
+		run   func(*cobra.Command, []string) error
+		flags func()
+	}{
+		{"sync", runSync, func() {}},
+		{"sync --force", runSync, func() { syncForce, syncYes = true, true }},
+		{"sync --translations-only", runSync, func() { syncTranslationsOnly = true }},
+		{"cleanup", runCleanup, func() {}},
+		{"status", runStatus, func() {}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetFlags(t)
+			tt.flags()
+			fake := newFakeAccent(t, "en", "fr")
+			for _, endpoint := range []string{"/export", "/sync", "/add-translations"} {
+				fake.failEndpoint(endpoint)
+			}
+
+			t.Chdir(t.TempDir())
+			cfg := fmt.Sprintf(`{
+  "apiUrl": %q,
+  "apiKey": %q,
+  "requestDelay": "0s",
+  "files": [{
+    "format": "json",
+    "source": "localization/en/*.json",
+    "target": "translations/%%slug%%/%%original_file_name%%"
+  }]
+}`, fake.URL(), fakeAPIKey)
+			if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			writeLocalFile(t, "en", "app", `{"a":"A"}`)
+
+			err := tt.run(nil, nil)
+			if err == nil || !strings.Contains(err.Error(), "source language") || !strings.Contains(err.Error(), "app.json") {
+				t.Fatalf("%s error = %v, want the unresolved source language error naming app.json", tt.name, err)
+			}
+		})
+	}
+}
+
+func TestConfiguredLanguageSatisfiesSourceLanguageCheck(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	file := config.File{Source: "localization/en/*.json", Target: "translations/%slug%/%original_file_name%"}
+
+	if err := requireSourceLanguages(&config.Config{Files: []config.File{file}}); err == nil {
+		t.Error("unresolvable source language passed the check, want an error")
+	}
+	file.Language = "en"
+	if err := requireSourceLanguages(&config.Config{Files: []config.File{file}}); err != nil {
+		t.Errorf("configured language was rejected: %v", err)
 	}
 }

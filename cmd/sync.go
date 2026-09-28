@@ -66,6 +66,10 @@ func runSync(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if err := requireSourceLanguages(cfg); err != nil {
+		return err
+	}
+
 	if syncForce && syncTranslationsOnly {
 		return fmt.Errorf("--force and --translations-only are mutually exclusive: --force re-uploads and overwrites everything, --translations-only changes no keys and overwrites no reviewed translations")
 	}
@@ -141,7 +145,7 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 				}
 			}
 
-			newNodes, uploaded, err := syncFileChunked(client, doc, syncOrderBy, syncForce)
+			newNodes, uploaded, err := syncFileChunked(client, doc, syncForce)
 			if uploaded {
 				progress.keysUploaded = true
 			}
@@ -270,7 +274,7 @@ func deleteAllKeysChunked(client *api.Client, doc helpers.Document) error {
 
 // syncFileChunked uploads keys missing from the server in cumulative chunks;
 // force treats every local key as new. uploaded stays true next to an error so the caller knows keys already landed.
-func syncFileChunked(client *api.Client, doc helpers.Document, orderBy string, force bool) (newNodes []helpers.NodeEntry, uploaded bool, err error) {
+func syncFileChunked(client *api.Client, doc helpers.Document, force bool) (newNodes []helpers.NodeEntry, uploaded bool, err error) {
 	var existing []byte
 	if !force {
 		existing, err = serverExport(client, doc)
@@ -299,7 +303,7 @@ func syncFileChunked(client *api.Client, doc helpers.Document, orderBy string, f
 
 	output.Info(fmt.Sprintf("%s: %d keys -> %d chunk(s)", doc.LocalPath, len(newNodes), len(chunks)))
 
-	opts := api.SyncOptions{SyncType: "passive", OrderBy: orderBy}
+	opts := api.SyncOptions{SyncType: "passive"}
 
 	output.Section(fmt.Sprintf("Syncing %s - %d chunk(s)", doc.LocalPath, len(chunks)))
 	for i, chunk := range chunks {

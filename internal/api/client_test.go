@@ -63,7 +63,7 @@ func TestUploadsSendExpectedRequest(t *testing.T) {
 		{
 			name: "sync",
 			call: func(c *Client, file string) error {
-				return c.Sync(file, "app", "json", "en", SyncOptions{SyncType: "passive", OrderBy: "key"})
+				return c.Sync(file, "app", "json", "en", SyncOptions{SyncType: "passive"})
 			},
 			wantPath:   "/sync",
 			wantFields: map[string][]string{"document_path": {"app"}, "document_format": {"json"}, "language": {"en"}, "sync_type": {"passive"}},

@@ -40,6 +40,10 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	if err := requireSourceLanguages(cfg); err != nil {
+		return err
+	}
+
 	client := newClient(cfg)
 	output.Section("Cleaning up")
 
