@@ -69,12 +69,12 @@ func TestUploadsSendExpectedRequest(t *testing.T) {
 			wantFields: map[string][]string{"document_path": {"app"}, "document_format": {"json"}, "language": {"en"}, "sync_type": {"passive"}},
 		},
 		{
-			name: "sync omits empty language and sync_type",
+			name: "sync sends empty language but omits empty sync_type",
 			call: func(c *Client, file string) error {
 				return c.Sync(file, "app", "json", "", SyncOptions{})
 			},
 			wantPath:   "/sync",
-			wantFields: map[string][]string{"document_path": {"app"}, "document_format": {"json"}},
+			wantFields: map[string][]string{"document_path": {"app"}, "document_format": {"json"}, "language": {""}},
 		},
 		{
 			name: "add-translations",

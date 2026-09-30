@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -201,7 +203,10 @@ func (f *fakeAccent) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	isUpload := r.Method == http.MethodPost && (r.URL.Path == "/sync" || r.URL.Path == "/add-translations")
 	switch {
+	case isUpload && !hasUploadFields(r):
+		http.Error(w, "file, language and document_format are required", http.StatusUnprocessableEntity)
 	case r.Method == http.MethodPost && r.URL.Path == "/sync":
 		f.handleSync(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/add-translations":
@@ -211,6 +216,18 @@ func (f *fakeAccent) handle(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}
+}
+
+// hasUploadFields mirrors Accent's MovementContextParser, which answers 422 on
+// /sync and /add-translations unless file, language and document_format are all present.
+func hasUploadFields(r *http.Request) bool {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		return false
+	}
+	_, hasFormat := r.MultipartForm.Value["document_format"]
+	_, hasLanguage := r.MultipartForm.Value["language"]
+	_, hasFile := r.MultipartForm.File["file"]
+	return hasFormat && hasLanguage && hasFile
 }
 
 func (f *fakeAccent) parseUpload(r *http.Request) (document, language string, nodes []helpers.NodeEntry, err error) {
@@ -384,4 +401,38 @@ func (f *fakeAccent) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(data)
+}
+
+func TestFakeAccentRejectsUploadWithoutLanguage(t *testing.T) {
+	fake := newFakeAccent(t, "en")
+	for _, endpoint := range []string{"/sync", "/add-translations"} {
+		var body bytes.Buffer
+		mw := multipart.NewWriter(&body)
+		fw, err := mw.CreateFormFile("file", "app.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = fw.Write([]byte(`{"a":"A"}`))
+		_ = mw.WriteField("document_path", "app")
+		_ = mw.WriteField("document_format", "json")
+		_ = mw.Close()
+
+		req, err := http.NewRequest(http.MethodPost, fake.URL()+endpoint, &body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.Header.Set("Authorization", "Bearer "+fakeAPIKey)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Errorf("%s without language = HTTP %d, want 422", endpoint, resp.StatusCode)
+		}
+	}
+	if calls := len(fake.callsTo("sync")) + len(fake.callsTo("add-translations")); calls != 0 {
+		t.Errorf("fake recorded %d upload(s), want none", calls)
+	}
 }

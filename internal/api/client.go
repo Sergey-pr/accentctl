@@ -85,10 +85,7 @@ type ExportOptions struct {
 
 // Sync uploads a file and syncs it with Accent.
 func (c *Client) Sync(filePath, documentPath, format, language string, opts SyncOptions) error {
-	return c.uploadDocument("/sync", filePath, documentPath, format, func(w *multipart.Writer) {
-		if language != "" {
-			_ = w.WriteField("language", language)
-		}
+	return c.uploadDocument("/sync", filePath, documentPath, format, language, func(w *multipart.Writer) {
 		if opts.SyncType != "" {
 			_ = w.WriteField("sync_type", opts.SyncType)
 		}
@@ -97,8 +94,7 @@ func (c *Client) Sync(filePath, documentPath, format, language string, opts Sync
 
 // AddTranslations uploads a translation file to Accent.
 func (c *Client) AddTranslations(filePath, documentPath, format, language string, opts AddTranslationsOptions) error {
-	return c.uploadDocument("/add-translations", filePath, documentPath, format, func(w *multipart.Writer) {
-		_ = w.WriteField("language", language)
+	return c.uploadDocument("/add-translations", filePath, documentPath, format, language, func(w *multipart.Writer) {
 		if opts.MergeType != "" {
 			_ = w.WriteField("merge_type", opts.MergeType)
 		}
@@ -107,13 +103,14 @@ func (c *Client) AddTranslations(filePath, documentPath, format, language string
 
 // uploadDocument posts filePath with its document fields to path; extra adds
 // the fields specific to each endpoint.
-func (c *Client) uploadDocument(path, filePath, documentPath, format string, extra func(*multipart.Writer)) error {
+func (c *Client) uploadDocument(path, filePath, documentPath, format, language string, extra func(*multipart.Writer)) error {
 	body, contentType, err := buildMultipart(func(w *multipart.Writer) error {
 		if err := writeFile(w, "file", filePath); err != nil {
 			return err
 		}
 		_ = w.WriteField("document_path", documentPath)
 		_ = w.WriteField("document_format", format)
+		_ = w.WriteField("language", language)
 		extra(w)
 		return nil
 	})
