@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/sergey-pr/accentctl/internal/config"
 )
 
 var keyCmd = &cobra.Command{
@@ -68,7 +71,11 @@ func readAPIKey(args []string, stdin io.Reader) (string, error) {
 }
 
 func saveLocalAPIKey(apiKey string) error {
-	const localFile = "accent.local.json"
+	dir, err := config.FindConfigDir()
+	if err != nil {
+		return err
+	}
+	localFile := filepath.Join(dir, "accent.local.json")
 
 	// Read existing file to preserve any other fields.
 	data := map[string]any{}

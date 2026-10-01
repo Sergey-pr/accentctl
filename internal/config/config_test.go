@@ -134,3 +134,18 @@ func TestTargetMustContainSlug(t *testing.T) {
 		})
 	}
 }
+
+func TestFindConfigDirWithoutConfigReturnsWorkingDir(t *testing.T) {
+	t.Chdir(t.TempDir())
+	want, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := FindConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("FindConfigDir = %q, want the working directory %q", got, want)
+	}
+}

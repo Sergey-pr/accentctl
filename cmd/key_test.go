@@ -3,9 +3,12 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/sergey-pr/accentctl/internal/config"
 )
 
 func TestReadAPIKey(t *testing.T) {
@@ -90,5 +93,40 @@ func TestSaveLocalAPIKeyFileMode(t *testing.T) {
 	}
 	if got := info.Mode().Perm(); got != 0o600 {
 		t.Errorf("file mode = %o, want 600", got)
+	}
+}
+
+func TestKeySetFromSubdirectorySavesWhereConfigIsLoaded(t *testing.T) {
+	t.Setenv("ACCENT_API_KEY", "")
+	t.Setenv("ACCENT_API_URL", "")
+	root := t.TempDir()
+	t.Chdir(root)
+	cfg := `{
+  "apiUrl": "https://accent.test",
+  "files": [{"language": "en", "source": "localization/en/*.json", "target": "localization/%slug%/%original_file_name%"}]
+}`
+	if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(root, "src", "nested")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(sub)
+
+	if err := runKeySet(nil, []string{"secret"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(sub, "accent.local.json")); !os.IsNotExist(err) {
+		t.Error("accent.local.json was written to the subdirectory, where config.Load never reads it")
+	}
+	t.Chdir(sub)
+	loaded, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load after key set: %v", err)
+	}
+	if loaded.APIKey != "secret" {
+		t.Errorf("APIKey = %q, want the key saved by key set", loaded.APIKey)
 	}
 }

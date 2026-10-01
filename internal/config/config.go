@@ -102,17 +102,28 @@ func Load() (*Config, error) {
 // holding an accent config and enters it, so source globs and targets resolve
 // as if run from the project root. A no-op when the config is already here or absent.
 func chdirToConfigDir() error {
-	dir, err := os.Getwd()
+	dir, err := FindConfigDir()
 	if err != nil {
 		return err
 	}
+	return os.Chdir(dir)
+}
+
+// FindConfigDir returns the nearest directory, from the working directory up,
+// that holds an accent config, or the working directory when none does.
+func FindConfigDir() (string, error) {
+	start, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	dir := start
 	for {
 		if hasConfig(dir) {
-			return os.Chdir(dir)
+			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return nil
+			return start, nil
 		}
 		dir = parent
 	}
