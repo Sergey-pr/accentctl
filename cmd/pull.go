@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -103,10 +104,11 @@ func runHooks(hooks []string) error {
 	shell, flag := hookShell(runtime.GOOS)
 	for _, h := range hooks {
 		output.Hook(h)
-		c := exec.Command(shell, flag, h)
-		c.Stdout = nil
-		c.Stderr = nil
-		if err := c.Run(); err != nil {
+		out, err := exec.Command(shell, flag, h).CombinedOutput()
+		if err != nil {
+			if msg := strings.TrimSpace(string(out)); msg != "" {
+				return fmt.Errorf("hook %q: %w\n%s", h, err, msg)
+			}
 			return fmt.Errorf("hook %q: %w", h, err)
 		}
 	}

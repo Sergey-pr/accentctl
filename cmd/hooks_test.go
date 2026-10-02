@@ -86,3 +86,23 @@ func TestRunHooksStopsAndReportsOnFailure(t *testing.T) {
 		t.Error("a hook after the failing one ran; hooks must stop at the first failure")
 	}
 }
+
+// `echo`, `1>&2`, `&&` and `exit 1` are spelled the same in sh and cmd.exe.
+func TestRunHooksFailureIncludesHookOutput(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	err := runHooks([]string{"echo out-text && echo err-text 1>&2 && exit 1"})
+	if err == nil {
+		t.Fatal("runHooks succeeded on a failing hook, want an error")
+	}
+	msg := err.Error()
+	i := strings.Index(msg, "exit status")
+	if i < 0 {
+		t.Fatalf("error = %q, want the exit status", msg)
+	}
+	for _, want := range []string{"out-text", "err-text"} {
+		if !strings.Contains(msg[i:], want) {
+			t.Errorf("error = %q, want the hook's output %q after the exit status", msg, want)
+		}
+	}
+}
