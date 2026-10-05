@@ -8,6 +8,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/sergey-pr/accentctl/internal/config"
+	"github.com/sergey-pr/accentctl/internal/output"
 )
 
 var initCmd = &cobra.Command{
@@ -46,9 +49,16 @@ func runInit(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	target, err := prompt(r, "Target path template", "localization/%slug%/%original_file_name%")
-	if err != nil {
-		return err
+	file := config.File{Language: language, Format: format, Source: source}
+	for {
+		file.Target, err = prompt(r, "Target path template", "localization/%slug%/%original_file_name%")
+		if err != nil {
+			return err
+		}
+		if err = file.Validate(); err == nil {
+			break
+		}
+		output.Warn(err.Error())
 	}
 
 	cfg := map[string]any{
@@ -58,7 +68,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 				"language": language,
 				"format":   format,
 				"source":   source,
-				"target":   target,
+				"target":   file.Target,
 			},
 		},
 	}

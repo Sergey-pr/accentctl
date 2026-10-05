@@ -40,6 +40,14 @@ func (f File) Sources() ([]string, error) {
 	return sources, nil
 }
 
+// Validate reports a file entry that no command can work with.
+func (f File) Validate() error {
+	if !strings.Contains(f.Target, "%slug%") {
+		return fmt.Errorf("target %q for source %q does not contain %%slug%%", f.Target, f.Source)
+	}
+	return nil
+}
+
 type Config struct {
 	APIURL       string        `mapstructure:"apiUrl"`
 	APIKey       string        `mapstructure:"apiKey"`
@@ -149,8 +157,8 @@ func (c *Config) validate() error {
 		return fmt.Errorf("at least one file entry is required in config")
 	}
 	for _, f := range c.Files {
-		if !strings.Contains(f.Target, "%slug%") {
-			return fmt.Errorf("target %q for source %q does not contain %%slug%%", f.Target, f.Source)
+		if err := f.Validate(); err != nil {
+			return err
 		}
 	}
 	if c.RequestDelay < 0 {
