@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
@@ -982,5 +984,29 @@ func TestConfiguredLanguageSatisfiesSourceLanguageCheck(t *testing.T) {
 	file.Language = "en"
 	if err := requireSourceLanguages(&config.Config{Files: []config.File{file}}); err != nil {
 		t.Errorf("configured language was rejected: %v", err)
+	}
+}
+
+func TestSyncWarnsWhenAccentLacksALocalLanguage(t *testing.T) {
+	resetFlags(t)
+	var out bytes.Buffer
+	stdout := color.Output
+	color.Output = &out
+	t.Cleanup(func() { color.Output = stdout })
+
+	fake := newFakeAccent(t, "en", "fr")
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
+
+	if err := runSync(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.get("app", "fr", "a"); got != "A-fr" {
+		t.Errorf("fr.a = %q, want the local translation pushed", got)
+	}
+	if !strings.Contains(out.String(), `app.json: skipped, the Accent project has no "de" language`) {
+		t.Errorf("output does not warn about the missing de language:\n%s", out.String())
 	}
 }
