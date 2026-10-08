@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -41,19 +42,25 @@ func runStatus(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
+		onServer := map[string]bool{}
 		for _, src := range sources {
 			doc := helpers.SourceDocument(file, src)
-			toPush, toDelete, err := diffWithAccent(client, doc)
+			toPush, toDelete, found, err := diffWithAccent(client, doc)
 			if err != nil {
 				return err
 			}
+			onServer[doc.Path] = found
 			printFileStatus(doc.LocalPath, doc.Language, toPush, toDelete)
 		}
 
 		err = helpers.ForEachTranslationFile(file, func(doc helpers.Document) error {
-			toPush, toDelete, err := diffWithAccent(client, doc)
+			toPush, toDelete, found, err := diffWithAccent(client, doc)
 			if err != nil {
 				return err
+			}
+			if !found && onServer[doc.Path] {
+				printMissingLanguage(doc.LocalPath, doc.Language)
+				return nil
 			}
 			printFileStatus(doc.LocalPath, doc.Language, toPush, toDelete)
 			return nil
@@ -68,22 +75,23 @@ func runStatus(_ *cobra.Command, _ []string) error {
 
 // diffWithAccent counts keys to push (local but not in Accent) and keys to
 // delete (in Accent but not local) for one file.
-func diffWithAccent(client *api.Client, doc helpers.Document) (toPush, toDelete int, err error) {
-	existingData, err := serverExport(client, doc)
-	if err != nil {
-		return 0, 0, fmt.Errorf("%s: %w", doc.LocalPath, err)
+func diffWithAccent(client *api.Client, doc helpers.Document) (toPush, toDelete int, found bool, err error) {
+	existingData, err := client.ExportBytes(doc.Path, doc.Format, doc.Language)
+	found = !errors.Is(err, api.ErrNotFound)
+	if found && err != nil {
+		return 0, 0, false, fmt.Errorf("%s: %w", doc.LocalPath, err)
 	}
 
 	localObj, err := helpers.ReadJSONObjectFile(doc.LocalPath)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, found, err
 	}
 	var serverNodes []helpers.NodeEntry
 	if len(existingData) > 0 {
 		accObj, err := helpers.ParseJSONObject(existingData)
 		if err != nil {
 			output.Info(fmt.Sprintf("%s: skipping malformed server response: %v", doc.LocalPath, err))
-			return 0, 0, nil
+			return 0, 0, found, nil
 		}
 		if accObj != nil {
 			serverNodes = helpers.CollectNodes(accObj, nil)
@@ -91,7 +99,12 @@ func diffWithAccent(client *api.Client, doc helpers.Document) (toPush, toDelete 
 	}
 
 	added, removed := helpers.DiffNodes(helpers.CollectNodes(localObj, nil), serverNodes)
-	return len(added), len(removed), nil
+	return len(added), len(removed), found, nil
+}
+
+func printMissingLanguage(path, language string) {
+	fmt.Printf("\n  %s  (%s)\n", path, language)
+	output.Warn("  " + helpers.MissingLanguage(language))
 }
 
 func printFileStatus(path, language string, toPush, toDelete int) {

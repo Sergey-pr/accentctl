@@ -218,8 +218,6 @@ func (f *fakeAccent) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// hasUploadFields mirrors Accent's MovementContextParser, which answers 422 on
-// /sync and /add-translations unless file, language and document_format are all present.
 func hasUploadFields(r *http.Request) bool {
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		return false

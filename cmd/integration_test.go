@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -807,7 +808,7 @@ func TestStatusCountsPushAndDelete(t *testing.T) {
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr","b":"B-fr"}`)
 
 	client := api.New(fake.URL(), fakeAPIKey, false, 0)
-	toPush, toDelete, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
+	toPush, toDelete, _, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -879,7 +880,7 @@ func TestStatusDiffWithUnusableServerResponse(t *testing.T) {
 			writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
 
 			client := api.New(srv.URL, fakeAPIKey, false, 0)
-			toPush, toDelete, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
+			toPush, toDelete, _, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -899,7 +900,7 @@ func TestStatusCountsRepeatedServerKeyOnce(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 
 	client := api.New(srv.URL, fakeAPIKey, false, 0)
-	toPush, toDelete, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
+	toPush, toDelete, _, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1008,5 +1009,79 @@ func TestSyncWarnsWhenAccentLacksALocalLanguage(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), `app.json: skipped, the Accent project has no "de" language`) {
 		t.Errorf("output does not warn about the missing de language:\n%s", out.String())
+	}
+}
+
+func captureStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan string)
+	go func() {
+		data, _ := io.ReadAll(r)
+		done <- string(data)
+	}()
+
+	stdout, colorOut := os.Stdout, color.Output
+	os.Stdout, color.Output = w, w
+	err = func() error {
+		defer func() { os.Stdout, color.Output = stdout, colorOut }()
+		return fn()
+	}()
+	_ = w.Close()
+	return <-done, err
+}
+
+func statusBlock(out, path string) string {
+	i := strings.Index(out, path)
+	if i < 0 {
+		return ""
+	}
+	block := out[i:]
+	if j := strings.Index(block, "\n\n"); j >= 0 {
+		block = block[:j]
+	}
+	return block
+}
+
+func TestStatusReportsLanguageMissingFromProject(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en", "fr")
+	fake.seed("app", "en", [][2]string{{"a", "A"}})
+	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
+
+	out, err := captureStdout(t, func() error { return runStatus(nil, nil) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	de := statusBlock(out, "localization/de/app.json")
+	if !strings.Contains(de, `the Accent project has no "de" language`) || strings.Contains(de, "to push") {
+		t.Errorf("de status = %q, want the missing-language message instead of counts", de)
+	}
+	if fr := statusBlock(out, "localization/fr/app.json"); !strings.Contains(fr, "to push:   0") {
+		t.Errorf("fr status = %q, want its counts unchanged", fr)
+	}
+}
+
+func TestStatusCountsTranslationsOfUnsyncedDocument(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en", "fr")
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
+
+	out, err := captureStdout(t, func() error { return runStatus(nil, nil) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	de := statusBlock(out, "localization/de/app.json")
+	if !strings.Contains(de, "to push:   1") || strings.Contains(de, "has no") {
+		t.Errorf("de status = %q, want counts: the document is not synced, so the language cannot be judged", de)
 	}
 }

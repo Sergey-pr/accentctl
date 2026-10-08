@@ -101,8 +101,6 @@ func (c *Client) AddTranslations(filePath, documentPath, format, language string
 	})
 }
 
-// uploadDocument posts filePath with its document fields to path; extra adds
-// the fields specific to each endpoint.
 func (c *Client) uploadDocument(path, filePath, documentPath, format, language string, extra func(*multipart.Writer)) error {
 	body, contentType, err := buildMultipart(func(w *multipart.Writer) error {
 		if err := writeFile(w, "file", filePath); err != nil {

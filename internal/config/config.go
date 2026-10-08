@@ -40,7 +40,6 @@ func (f File) Sources() ([]string, error) {
 	return sources, nil
 }
 
-// Validate reports a file entry that no command can work with.
 func (f File) Validate() error {
 	if !strings.Contains(f.Target, "%slug%") {
 		return fmt.Errorf("target %q for source %q does not contain %%slug%%", f.Target, f.Source)
@@ -117,8 +116,6 @@ func chdirToConfigDir() error {
 	return os.Chdir(dir)
 }
 
-// FindConfigDir returns the nearest directory, from the working directory up,
-// that holds an accent config, or the working directory when none does.
 func FindConfigDir() (string, error) {
 	start, err := os.Getwd()
 	if err != nil {

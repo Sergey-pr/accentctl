@@ -9,7 +9,6 @@ import (
 	"github.com/sergey-pr/accentctl/internal/config"
 )
 
-// runInitWithInput runs init in a fresh directory, answering its prompts from input.
 func runInitWithInput(t *testing.T, input string) error {
 	t.Helper()
 	t.Chdir(t.TempDir())

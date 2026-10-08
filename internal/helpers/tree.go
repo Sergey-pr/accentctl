@@ -42,8 +42,6 @@ func CollectNodes(obj *JSONObject, prefix []string) []NodeEntry {
 	return out
 }
 
-// DiffNodes returns local nodes missing from server and server nodes missing
-// from local, each in input order. Values are not compared, only paths.
 func DiffNodes(local, server []NodeEntry) (added, removed []NodeEntry) {
 	localSet := NodeSet(local)
 	serverSet := NodeSet(server)
@@ -166,7 +164,6 @@ func WithTempNodeFile(src string, nodes []NodeEntry, pattern string, fn func(pat
 	return fn(tmpName)
 }
 
-// ChunkCount returns how many chunks of size hold n items.
 func ChunkCount(n, size int) int {
 	return (n + size - 1) / size
 }

@@ -39,8 +39,8 @@ func newClient(cfg *config.Config) *api.Client {
 	return api.New(cfg.APIURL, cfg.APIKey, verbose, cfg.RequestDelay)
 }
 
-// serverExport returns a document's current bytes, treating a missing document
-// (ErrNotFound) as empty since sync, cleanup and status all diff against zero keys.
+// serverExport returns a document's current bytes. A missing document (ErrNotFound)
+// comes back empty because sync and cleanup treat it as having no keys.
 func serverExport(client *api.Client, doc helpers.Document) ([]byte, error) {
 	data, err := client.ExportBytes(doc.Path, doc.Format, doc.Language)
 	if errors.Is(err, api.ErrNotFound) {
@@ -62,8 +62,6 @@ func requireJSONFormat(cfg *config.Config, command string) error {
 	return nil
 }
 
-// requireSourceLanguages rejects source files whose language cannot be resolved.
-// Accent's /sync answers 422 without one, so this runs before any request.
 func requireSourceLanguages(cfg *config.Config) error {
 	for _, file := range cfg.Files {
 		sources, err := file.Sources()

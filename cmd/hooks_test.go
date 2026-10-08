@@ -87,7 +87,6 @@ func TestRunHooksStopsAndReportsOnFailure(t *testing.T) {
 	}
 }
 
-// `echo`, `1>&2`, `&&` and `exit 1` are spelled the same in sh and cmd.exe.
 func TestRunHooksFailureIncludesHookOutput(t *testing.T) {
 	t.Chdir(t.TempDir())
 

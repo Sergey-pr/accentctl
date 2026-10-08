@@ -27,7 +27,6 @@ func SourceLanguage(file config.File, src string) string {
 	return LanguageFromPath(filepath.ToSlash(src), file.Target)
 }
 
-// Document is a local file together with the Accent document and language it maps to.
 type Document struct {
 	LocalPath string
 	Path      string
@@ -35,7 +34,6 @@ type Document struct {
 	Language  string
 }
 
-// SourceDocument describes the source file src of file.
 func SourceDocument(file config.File, src string) Document {
 	return Document{
 		LocalPath: src,

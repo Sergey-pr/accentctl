@@ -80,6 +80,10 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 	})
 }
 
+func MissingLanguage(language string) string {
+	return fmt.Sprintf("the Accent project has no %q language (add it in Accent or rename the folder)", language)
+}
+
 // uploadTranslationChunks sends nodes to /add-translations in disjoint batches:
 // a merge only touches keys present in the upload, so chunks need not accumulate.
 func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, doc Document, mergeType string, verbose bool) error {
@@ -110,8 +114,7 @@ func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, doc Document
 			return nil
 		})
 		if errors.Is(err, api.ErrNotFound) {
-			output.Warn(fmt.Sprintf("%s: skipped, the Accent project has no %q language (add it in Accent or rename the folder)",
-				doc.LocalPath, doc.Language))
+			output.Warn(fmt.Sprintf("%s: skipped, %s", doc.LocalPath, MissingLanguage(doc.Language)))
 			return nil
 		}
 		if err != nil {
