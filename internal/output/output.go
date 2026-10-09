@@ -2,9 +2,11 @@ package output
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/mattn/go-isatty"
 )
 
 var (
@@ -13,6 +15,8 @@ var (
 	cyan   = color.New(color.FgCyan)
 	faint  = color.New(color.Faint)
 	yellow = color.New(color.FgYellow, color.Bold)
+
+	isTerminal = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 )
 
 func Section(title string) {
@@ -43,8 +47,12 @@ func Warn(msg string) {
 	_, _ = yellow.Printf("  %s\n", msg)
 }
 
-// ChunkProgress renders an in-place progress bar.
+// ChunkProgress redraws a progress bar in place on a terminal, or prints one line per chunk in logs.
 func ChunkProgress(label string, current, total int) {
+	if !isTerminal {
+		fmt.Printf("  %d/%d  %s\n", current, total, label)
+		return
+	}
 	const width = 25
 	filled := 0
 	if total > 0 {
