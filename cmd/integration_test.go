@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/fatih/color"
@@ -1083,5 +1084,46 @@ func TestStatusCountsTranslationsOfUnsyncedDocument(t *testing.T) {
 	de := statusBlock(out, "localization/de/app.json")
 	if !strings.Contains(de, "to push:   1") || strings.Contains(de, "has no") {
 		t.Errorf("de status = %q, want counts: the document is not synced, so the language cannot be judged", de)
+	}
+}
+
+func TestNonJSONExportStopsBeforeAnyUpload(t *testing.T) {
+	tests := []struct {
+		name  string
+		run   func(*cobra.Command, []string) error
+		flags func()
+	}{
+		{"sync", runSync, func() {}},
+		{"sync --force", runSync, func() { syncForce, syncYes = true, true }},
+		{"cleanup", runCleanup, func() {}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetFlags(t)
+			tt.flags()
+			var uploads atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost {
+					uploads.Add(1)
+					return
+				}
+				_, _ = w.Write([]byte("<html>Sign in</html>"))
+			}))
+			t.Cleanup(srv.Close)
+			setupProject(t, srv.URL)
+			writeLocalFile(t, "en", "app", `{"a":"A"}`)
+			writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+
+			err := tt.run(nil, nil)
+			if err == nil || !strings.Contains(err.Error(), "not valid JSON") {
+				t.Errorf("%s error = %v, want the invalid export reported", tt.name, err)
+			}
+			if n := uploads.Load(); n != 0 {
+				t.Errorf("%s made %d upload(s), want none", tt.name, n)
+			}
+			if got := readLocalFile(t, "fr", "app"); got != `{"a":"A-fr"}` {
+				t.Errorf("fr/app.json = %q, want it untouched", got)
+			}
+		})
 	}
 }

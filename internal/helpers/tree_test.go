@@ -226,31 +226,32 @@ func TestDiffNodes_ignoresValues(t *testing.T) {
 	}
 }
 
-func TestServerNodes_unusableDataMeansNoKeys(t *testing.T) {
+func TestServerNodes_emptyDataMeansNoKeys(t *testing.T) {
+	if nodes, err := ServerNodes(nil); nodes != nil || err != nil {
+		t.Errorf("ServerNodes(nil) = (%v, %v), want (nil, nil)", nodes, err)
+	}
+}
+
+func TestServerNodes_rejectsDataThatIsNotAJSONObject(t *testing.T) {
 	for name, data := range map[string]string{
-		"empty":         ``,
 		"malformed":     `not json`,
+		"html page":     `<html>Sign in</html>`,
 		"not an object": `["a"]`,
 	} {
-		if got := ServerNodes([]byte(data)); got != nil {
-			t.Errorf("%s: ServerNodes = %v, want nil", name, got)
+		if _, err := ServerNodes([]byte(data)); err == nil {
+			t.Errorf("%s: ServerNodes succeeded, want an error", name)
 		}
 	}
 }
 
-func TestNewKeysChunksWithNodes_malformedServerDataTreatsAllAsNew(t *testing.T) {
+func TestNewKeysChunksWithNodes_malformedServerDataIsAnError(t *testing.T) {
 	local := writeTempJSON(t, `{"a":"1","b":"2"}`)
 	paths, newNodes, err := NewKeysChunksWithNodes(local, []byte(`not json`), 250)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("NewKeysChunksWithNodes succeeded on a malformed export, want an error")
 	}
-	t.Cleanup(func() {
-		for _, p := range paths {
-			_ = os.Remove(p)
-		}
-	})
-	if len(newNodes) != 2 {
-		t.Errorf("newNodes = %d, want 2", len(newNodes))
+	if paths != nil || newNodes != nil {
+		t.Errorf("got %d chunk file(s) and %d new node(s), want none", len(paths), len(newNodes))
 	}
 }
 

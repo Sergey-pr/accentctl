@@ -3,6 +3,7 @@ package helpers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -58,17 +59,20 @@ func DiffNodes(local, server []NodeEntry) (added, removed []NodeEntry) {
 	return added, removed
 }
 
-// ServerNodes parses data exported from Accent, treating anything that is not
-// a JSON object as an empty key set.
-func ServerNodes(data []byte) []NodeEntry {
+// ServerNodes parses data exported from Accent. Empty data means no keys, and
+// data that is not a JSON object returns an error.
+func ServerNodes(data []byte) ([]NodeEntry, error) {
 	if len(data) == 0 {
-		return nil
+		return nil, nil
 	}
 	obj, err := ParseJSONObject(data)
-	if err != nil || obj == nil {
-		return nil
+	if err != nil {
+		return nil, fmt.Errorf("export from Accent is not valid JSON: %w", err)
 	}
-	return CollectNodes(obj, nil)
+	if obj == nil {
+		return nil, errors.New("export from Accent is not a JSON object")
+	}
+	return CollectNodes(obj, nil), nil
 }
 
 type treeNode struct {
@@ -176,7 +180,10 @@ func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int
 		return nil, nil, err
 	}
 
-	existingNodes := ServerNodes(existingData)
+	existingNodes, err := ServerNodes(existingData)
+	if err != nil {
+		return nil, nil, err
+	}
 	newNodes, _ = DiffNodes(CollectNodes(localObj, nil), existingNodes)
 	if len(newNodes) == 0 {
 		return nil, nil, nil

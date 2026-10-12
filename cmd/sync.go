@@ -246,7 +246,10 @@ func deleteAllKeysChunked(client *api.Client, doc helpers.Document) error {
 		return fmt.Errorf("%s: could not fetch existing keys: %w", doc.LocalPath, err)
 	}
 
-	allNodes := helpers.ServerNodes(existingData)
+	allNodes, err := helpers.ServerNodes(existingData)
+	if err != nil {
+		return fmt.Errorf("%s: %w", doc.LocalPath, err)
+	}
 	if len(allNodes) == 0 {
 		output.Info(fmt.Sprintf("%s: no keys on server", doc.LocalPath))
 		return nil
