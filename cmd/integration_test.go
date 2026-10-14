@@ -1127,3 +1127,24 @@ func TestNonJSONExportStopsBeforeAnyUpload(t *testing.T) {
 		})
 	}
 }
+
+func TestPullKeepsLocalFilesWhenExportIsNotJSON(t *testing.T) {
+	resetFlags(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("<html>Sign in</html>"))
+	}))
+	t.Cleanup(srv.Close)
+	setupProject(t, srv.URL)
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+
+	err := runPull(nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "not valid JSON") {
+		t.Errorf("pull error = %v, want the invalid export reported", err)
+	}
+	for slug, want := range map[string]string{"en": `{"a":"A"}`, "fr": `{"a":"A-fr"}`} {
+		if got := readLocalFile(t, slug, "app"); got != want {
+			t.Errorf("%s/app.json = %q, want it untouched", slug, got)
+		}
+	}
+}

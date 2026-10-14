@@ -305,3 +305,59 @@ func TestExportNotFound(t *testing.T) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestExportRejectsNonObjectForJSONFormat(t *testing.T) {
+	for name, tc := range map[string]struct{ body, wantErr string }{
+		"html page":     {`<html>Sign in</html>`, "not valid JSON"},
+		"not an object": {`["a"]`, "not a JSON object"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tc.body))
+			})
+			dir := t.TempDir()
+			dest := filepath.Join(dir, "app.json")
+			if err := os.WriteFile(dest, []byte(`{"a":"A"}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			err := client.Export(dest, "app", "json", "en", ExportOptions{})
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) || !strings.Contains(err.Error(), dest) {
+				t.Errorf("err = %v, want it to name %s and say %q", err, dest, tc.wantErr)
+			}
+			data, err := os.ReadFile(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != `{"a":"A"}` {
+				t.Errorf("file content = %q, want the previous content kept", data)
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 1 {
+				t.Errorf("dir has %d entries, want 1 (no leftover temp files): %v", len(entries), entries)
+			}
+		})
+	}
+}
+
+func TestExportPassesOtherFormatsThrough(t *testing.T) {
+	const body = "a: A\n"
+	client := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(body))
+	})
+	dest := filepath.Join(t.TempDir(), "app.yml")
+
+	if err := client.Export(dest, "app", "yaml", "en", ExportOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != body {
+		t.Errorf("file content = %q, want the response unchanged", data)
+	}
+}

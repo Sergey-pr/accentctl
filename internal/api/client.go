@@ -2,6 +2,8 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -176,12 +178,27 @@ func (c *Client) Export(destPath, documentPath, format, language string, opts Ex
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return err
 	}
-	return writeFileAtomic(destPath, resp.Body)
+	var check func([]byte) error
+	if format == "json" {
+		check = checkJSONObject
+	}
+	return writeFileAtomic(destPath, resp.Body, check)
+}
+
+func checkJSONObject(data []byte) error {
+	var raw json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("export from Accent is not valid JSON: %w", err)
+	}
+	if raw[0] != '{' {
+		return errors.New("export from Accent is not a JSON object")
+	}
+	return nil
 }
 
 // writeFileAtomic streams r into a same-directory temp file and renames it over
 // destPath, so a failed download never truncates the existing file.
-func writeFileAtomic(destPath string, r io.Reader) error {
+func writeFileAtomic(destPath string, r io.Reader, check func([]byte) error) error {
 	tmp, err := os.CreateTemp(filepath.Dir(destPath), ".accentctl-*")
 	if err != nil {
 		return err
@@ -200,6 +217,16 @@ func writeFileAtomic(destPath string, r io.Reader) error {
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(tmp.Name())
 		return err
+	}
+	if check != nil {
+		data, err := os.ReadFile(tmp.Name())
+		if err == nil {
+			err = check(data)
+		}
+		if err != nil {
+			_ = os.Remove(tmp.Name())
+			return fmt.Errorf("%s: %w", destPath, err)
+		}
 	}
 	if err := os.Rename(tmp.Name(), destPath); err != nil {
 		_ = os.Remove(tmp.Name())
