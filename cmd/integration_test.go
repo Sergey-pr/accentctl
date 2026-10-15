@@ -1148,3 +1148,30 @@ func TestPullKeepsLocalFilesWhenExportIsNotJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestPullTreatsUnsetAndUppercaseFormatAsJSON(t *testing.T) {
+	for _, format := range []string{"", "JSON"} {
+		t.Run("format="+format, func(t *testing.T) {
+			resetFlags(t)
+			var sent atomic.Value
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sent.Store(r.URL.Query().Get("document_format"))
+				_, _ = w.Write([]byte("<html>Sign in</html>"))
+			}))
+			t.Cleanup(srv.Close)
+			setupProjectWithFormat(t, srv.URL, format)
+			writeLocalFile(t, "en", "app", `{"a":"A"}`)
+
+			err := runPull(nil, nil)
+			if got, _ := sent.Load().(string); got != "json" {
+				t.Errorf("document_format sent = %q, want \"json\"", got)
+			}
+			if err == nil || !strings.Contains(err.Error(), "not valid JSON") {
+				t.Errorf("pull error = %v, want the invalid export reported", err)
+			}
+			if got := readLocalFile(t, "en", "app"); got != `{"a":"A"}` {
+				t.Errorf("en/app.json = %q, want it untouched", got)
+			}
+		})
+	}
+}

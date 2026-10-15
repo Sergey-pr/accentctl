@@ -82,6 +82,12 @@ func Load() (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
+	for i := range cfg.Files {
+		cfg.Files[i].Format = strings.ToLower(cfg.Files[i].Format)
+		if cfg.Files[i].Format == "" {
+			cfg.Files[i].Format = "json"
+		}
+	}
 
 	// Env var overrides (highest priority)
 	if v := os.Getenv("ACCENT_API_KEY"); v != "" {

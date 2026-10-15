@@ -53,7 +53,7 @@ func serverExport(client *api.Client, doc helpers.Document) ([]byte, error) {
 // they parse local files as JSON whatever the configured format, and only pull streams bytes untouched.
 func requireJSONFormat(cfg *config.Config, command string) error {
 	for _, file := range cfg.Files {
-		if file.Format != "" && file.Format != "json" {
+		if file.Format != "json" {
 			return fmt.Errorf(
 				"%s supports format \"json\" only, but %q is configured for source %q; only pull works with other formats",
 				command, file.Format, file.Source)

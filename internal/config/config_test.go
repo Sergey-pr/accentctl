@@ -149,3 +149,29 @@ func TestFindConfigDirWithoutConfigReturnsWorkingDir(t *testing.T) {
 		t.Errorf("FindConfigDir = %q, want the working directory %q", got, want)
 	}
 }
+
+func TestLoadNormalizesFormat(t *testing.T) {
+	for format, want := range map[string]string{"": "json", "json": "json", "JSON": "json", "Rails_YML": "rails_yml"} {
+		t.Run("format="+format, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("ACCENT_API_KEY", "")
+			t.Setenv("ACCENT_API_URL", "")
+			cfg := `{
+  "apiUrl": "https://accent.test",
+  "apiKey": "key",
+  "files": [{"format": "` + format + `", "source": "localization/en/*.json", "target": "localization/%slug%/%original_file_name%"}]
+}`
+			if err := os.WriteFile("accent.json", []byte(cfg), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			loaded, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := loaded.Files[0].Format; got != want {
+				t.Errorf("Format = %q, want %q", got, want)
+			}
+		})
+	}
+}
