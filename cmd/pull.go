@@ -67,6 +67,8 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 	}
 
 	opts := api.ExportOptions{OrderBy: orderBy}
+	onServer := map[string]bool{}
+	var notFound []helpers.Document
 
 	for _, slug := range slugs {
 		for _, src := range sources {
@@ -74,11 +76,13 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 			targetPath := helpers.ApplyTargetTemplate(file.Target, slug, src)
 			err := client.Export(targetPath, docPath, file.Format, slug, opts)
 			if errors.Is(err, api.ErrNotFound) {
+				notFound = append(notFound, helpers.Document{LocalPath: targetPath, Path: docPath, Language: slug})
 				continue
 			}
 			if err != nil {
 				return err
 			}
+			onServer[docPath] = true
 			if file.Format == "json" && (orderBy == "key" || orderBy == "-key") {
 				if err := helpers.SortJSONFile(targetPath, orderBy == "-key"); err != nil {
 					return err
@@ -88,6 +92,11 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 		}
 	}
 
+	for _, doc := range notFound {
+		if onServer[doc.Path] {
+			output.Warn(fmt.Sprintf("%s: skipped, %s", doc.LocalPath, helpers.MissingLanguage(doc.Language)))
+		}
+	}
 	return nil
 }
 

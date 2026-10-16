@@ -1175,3 +1175,41 @@ func TestPullTreatsUnsetAndUppercaseFormatAsJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestPullWarnsWhenAccentLacksALocalLanguage(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en", "fr")
+	fake.seed("app", "en", [][2]string{{"a", "A"}})
+	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
+
+	out, err := captureStdout(t, func() error { return runPull(nil, nil) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `localization/de/app.json: skipped, the Accent project has no "de" language`) {
+		t.Errorf("output does not warn about the missing de language:\n%s", out)
+	}
+	if got := readLocalFile(t, "de", "app"); got != `{"a":"A-de"}` {
+		t.Errorf("de/app.json = %q, want it untouched", got)
+	}
+}
+
+func TestPullStaysQuietForUnsyncedDocument(t *testing.T) {
+	resetFlags(t)
+	fake := newFakeAccent(t, "en", "fr")
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+
+	out, err := captureStdout(t, func() error { return runPull(nil, nil) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "has no") {
+		t.Errorf("output warns about a language for a document that is not synced yet:\n%s", out)
+	}
+}
