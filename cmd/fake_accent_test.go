@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -207,6 +208,8 @@ func (f *fakeAccent) handle(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case isUpload && !hasUploadFields(r):
 		http.Error(w, "file, language and document_format are required", http.StatusUnprocessableEntity)
+	case isUpload && strings.ToLower(r.FormValue("document_format")) != "json":
+		http.Error(w, "document_format is invalid", http.StatusUnprocessableEntity)
 	case r.Method == http.MethodPost && r.URL.Path == "/sync":
 		f.handleSync(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/add-translations":
@@ -376,6 +379,10 @@ func (f *fakeAccent) handleExport(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+	if r.URL.Query().Get("document_format") != "json" {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	order := append([]string{}, doc.order...)
 	switch orderBy {
@@ -432,5 +439,59 @@ func TestFakeAccentRejectsUploadWithoutLanguage(t *testing.T) {
 	}
 	if calls := len(fake.callsTo("sync")) + len(fake.callsTo("add-translations")); calls != 0 {
 		t.Errorf("fake recorded %d upload(s), want none", calls)
+	}
+}
+
+func uploadForm(t *testing.T, format string) (*bytes.Buffer, string) {
+	t.Helper()
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("file", "app.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = fw.Write([]byte(`{"a":"A"}`))
+	_ = mw.WriteField("document_path", "app")
+	_ = mw.WriteField("document_format", format)
+	_ = mw.WriteField("language", "en")
+	_ = mw.Close()
+	return &body, mw.FormDataContentType()
+}
+
+func fakeStatus(t *testing.T, fake *fakeAccent, method, path string, body io.Reader, contentType string) int {
+	t.Helper()
+	req, err := http.NewRequest(method, fake.URL()+path, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	req.Header.Set("Authorization", "Bearer "+fakeAPIKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestFakeAccentHandlesFormatsLikeAccent(t *testing.T) {
+	fake := newFakeAccent(t, "en")
+	fake.seed("app", "en", [][2]string{{"a", "A"}})
+
+	for format, want := range map[string]int{"json": 200, "JSON": 500, "": 500, "yaml": 500} {
+		path := "/export?document_path=app&language=en&document_format=" + url.QueryEscape(format)
+		if got := fakeStatus(t, fake, http.MethodGet, path, nil, ""); got != want {
+			t.Errorf("export with document_format %q = HTTP %d, want %d", format, got, want)
+		}
+	}
+	for _, endpoint := range []string{"/sync", "/add-translations"} {
+		for format, want := range map[string]int{"json": 200, "JSON": 200, "": 422, "yaml": 422} {
+			body, contentType := uploadForm(t, format)
+			if got := fakeStatus(t, fake, http.MethodPost, endpoint, body, contentType); got != want {
+				t.Errorf("%s with document_format %q = HTTP %d, want %d", endpoint, format, got, want)
+			}
+		}
 	}
 }
