@@ -37,13 +37,14 @@ func runPull(_ *cobra.Command, _ []string) error {
 
 	client := newClient(cfg)
 	output.Section("Pulling files")
+	warned := map[string]bool{}
 
 	for _, file := range cfg.Files {
 		if err := runHooks(file.Hooks.BeforePull); err != nil {
 			return fmt.Errorf("beforePull hook failed: %w", err)
 		}
 
-		if err := pullFile(client, file, pullOrderBy); err != nil {
+		if err := pullFile(client, file, pullOrderBy, warned); err != nil {
 			return err
 		}
 
@@ -55,7 +56,7 @@ func runPull(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func pullFile(client *api.Client, file config.File, orderBy string) error {
+func pullFile(client *api.Client, file config.File, orderBy string, warned map[string]bool) error {
 	slugs, err := helpers.LanguageSlugsFromFilesystem(file.Target)
 	if err != nil {
 		return err
@@ -94,7 +95,7 @@ func pullFile(client *api.Client, file config.File, orderBy string) error {
 
 	for _, doc := range notFound {
 		if onServer[doc.Path] {
-			output.Warn(fmt.Sprintf("%s: skipped, %s", doc.LocalPath, helpers.MissingLanguage(doc.Language)))
+			helpers.WarnMissingLanguage(warned, doc)
 		}
 	}
 	return nil

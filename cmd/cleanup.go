@@ -61,8 +61,9 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 	}
 
 	output.Section("Pulling updated files")
+	warned := map[string]bool{}
 	for _, file := range cfg.Files {
-		if err := pullFile(client, file, cleanupOrderBy); err != nil {
+		if err := pullFile(client, file, cleanupOrderBy, warned); err != nil {
 			return err
 		}
 	}

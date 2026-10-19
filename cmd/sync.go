@@ -120,6 +120,7 @@ func (p syncProgress) needsRecovery() bool {
 
 func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 	var progress syncProgress
+	warned := map[string]bool{}
 
 	output.Section("Syncing files")
 
@@ -162,37 +163,38 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 	output.Section("Adding translations")
 	for _, r := range results {
 		if syncForce {
-			if err := helpers.AddAllTranslations(client, r.file, "force", verbose); err != nil {
+			if err := helpers.AddAllTranslations(client, r.file, "force", verbose, warned); err != nil {
 				return progress, err
 			}
 		} else if len(r.keySet) > 0 {
-			if err := helpers.AddTranslationsForNewKeys(client, r.file, r.keySet, verbose); err != nil {
+			if err := helpers.AddTranslationsForNewKeys(client, r.file, r.keySet, verbose, warned); err != nil {
 				return progress, err
 			}
 		}
 	}
 	progress.translationsPushed = true
 
-	return progress, finishSync(client, cfg)
+	return progress, finishSync(client, cfg, warned)
 }
 
 // runSyncTranslationsOnly recovers a sync that died between uploading keys and
 // pushing translations; the passive merge keeps reviewer-corrected strings, so it is safe to re-run.
 func runSyncTranslationsOnly(client *api.Client, cfg *config.Config) error {
 	output.Section("Adding translations")
+	warned := map[string]bool{}
 	for _, file := range cfg.Files {
-		if err := helpers.AddAllTranslations(client, file, "passive", verbose); err != nil {
+		if err := helpers.AddAllTranslations(client, file, "passive", verbose, warned); err != nil {
 			return err
 		}
 	}
-	return finishSync(client, cfg)
+	return finishSync(client, cfg, warned)
 }
 
 // finishSync pulls the server's copy over local files and runs afterSync hooks.
-func finishSync(client *api.Client, cfg *config.Config) error {
+func finishSync(client *api.Client, cfg *config.Config, warned map[string]bool) error {
 	output.Section("Pulling updated files")
 	for _, file := range cfg.Files {
-		if err := pullFile(client, file, syncOrderBy); err != nil {
+		if err := pullFile(client, file, syncOrderBy, warned); err != nil {
 			return err
 		}
 	}

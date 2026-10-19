@@ -1213,3 +1213,35 @@ func TestPullStaysQuietForUnsyncedDocument(t *testing.T) {
 		t.Errorf("output warns about a language for a document that is not synced yet:\n%s", out)
 	}
 }
+
+func TestSyncWarnsOnceAboutAMissingLanguage(t *testing.T) {
+	tests := []struct {
+		name string
+		seed bool
+	}{
+		{"new keys pushed", false},
+		{"no new keys", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetFlags(t)
+			fake := newFakeAccent(t, "en", "fr")
+			if tt.seed {
+				fake.seed("app", "en", [][2]string{{"a", "A"}})
+				fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
+			}
+			setupProject(t, fake.URL())
+			writeLocalFile(t, "en", "app", `{"a":"A"}`)
+			writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+			writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
+
+			out, err := captureStdout(t, func() error { return runSync(nil, nil) })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Count(out, `has no "de" language`); got != 1 {
+				t.Errorf("missing-language warning printed %d times, want once:\n%s", got, out)
+			}
+		})
+	}
+}

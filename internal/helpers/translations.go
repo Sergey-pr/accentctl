@@ -43,7 +43,7 @@ func ForEachTranslationFile(file config.File, fn func(doc Document) error) error
 
 // AddAllTranslations pushes every local translation without diffing against the
 // server. A "passive" merge keeps reviewer-corrected strings, so recovery cannot clobber them.
-func AddAllTranslations(client *api.Client, file config.File, mergeType string, verbose bool) error {
+func AddAllTranslations(client *api.Client, file config.File, mergeType string, verbose bool, warned map[string]bool) error {
 	return ForEachTranslationFile(file, func(doc Document) error {
 		obj, err := ReadJSONObjectFile(doc.LocalPath)
 		if err != nil {
@@ -54,13 +54,13 @@ func AddAllTranslations(client *api.Client, file config.File, mergeType string, 
 			output.Info(fmt.Sprintf("%s: no translations", doc.LocalPath))
 			return nil
 		}
-		return uploadTranslationChunks(client, nodes, doc, mergeType, verbose)
+		return uploadTranslationChunks(client, nodes, doc, mergeType, verbose, warned)
 	})
 }
 
 // AddTranslationsForNewKeys force-pushes translations for freshly synced source keys.
 // Accent creates each new key in every language holding the source text, so a plain diff sees nothing to push.
-func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet map[string]bool, verbose bool) error {
+func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet map[string]bool, verbose bool, warned map[string]bool) error {
 	return ForEachTranslationFile(file, func(doc Document) error {
 		obj, err := ReadJSONObjectFile(doc.LocalPath)
 		if err != nil {
@@ -76,7 +76,7 @@ func AddTranslationsForNewKeys(client *api.Client, file config.File, newKeySet m
 			output.Info(fmt.Sprintf("%s: no new translations", doc.LocalPath))
 			return nil
 		}
-		return uploadTranslationChunks(client, nodes, doc, "force", verbose)
+		return uploadTranslationChunks(client, nodes, doc, "force", verbose, warned)
 	})
 }
 
@@ -84,9 +84,17 @@ func MissingLanguage(language string) string {
 	return fmt.Sprintf("the Accent project has no %q language (add it in Accent or rename the folder)", language)
 }
 
+func WarnMissingLanguage(warned map[string]bool, doc Document) {
+	if warned[doc.LocalPath] {
+		return
+	}
+	warned[doc.LocalPath] = true
+	output.Warn(fmt.Sprintf("%s: skipped, %s", doc.LocalPath, MissingLanguage(doc.Language)))
+}
+
 // uploadTranslationChunks sends nodes to /add-translations in disjoint batches:
 // a merge only touches keys present in the upload, so chunks need not accumulate.
-func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, doc Document, mergeType string, verbose bool) error {
+func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, doc Document, mergeType string, verbose bool, warned map[string]bool) error {
 	nChunks := ChunkCount(len(nodes), constants.ChunkSize)
 	output.Info(fmt.Sprintf("%s: %d translations -> %d chunk(s)", doc.LocalPath, len(nodes), nChunks))
 
@@ -114,7 +122,7 @@ func uploadTranslationChunks(client *api.Client, nodes []NodeEntry, doc Document
 			return nil
 		})
 		if errors.Is(err, api.ErrNotFound) {
-			output.Warn(fmt.Sprintf("%s: skipped, %s", doc.LocalPath, MissingLanguage(doc.Language)))
+			WarnMissingLanguage(warned, doc)
 			return nil
 		}
 		if err != nil {
