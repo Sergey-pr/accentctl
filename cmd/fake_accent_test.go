@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -322,17 +323,14 @@ func (f *fakeAccent) handleAddTranslations(w http.ResponseWriter, r *http.Reques
 	mergeType := r.FormValue("merge_type")
 
 	f.mu.Lock()
-	doc, ok := f.docs[document]
-	if !ok {
+	if !slices.Contains(f.languages, language) {
 		f.mu.Unlock()
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	values, ok := doc.langs[language]
-	if !ok {
-		f.mu.Unlock()
-		w.WriteHeader(http.StatusNotFound)
-		return
+	var values map[string]*fakeEntry
+	if doc, ok := f.docs[document]; ok {
+		values = doc.langs[language]
 	}
 
 	// A merge never creates or removes keys, and passive skips reviewed entries.
@@ -493,5 +491,22 @@ func TestFakeAccentHandlesFormatsLikeAccent(t *testing.T) {
 				t.Errorf("%s with document_format %q = HTTP %d, want %d", endpoint, format, got, want)
 			}
 		}
+	}
+}
+
+func TestFakeAccentMergesIntoUnknownDocumentLikeAccent(t *testing.T) {
+	known := newFakeAccent(t, "en")
+	body, contentType := uploadForm(t, "json")
+	if got := fakeStatus(t, known, http.MethodPost, "/add-translations", body, contentType); got != http.StatusOK {
+		t.Errorf("add-translations for an unknown document = HTTP %d, want 200", got)
+	}
+	if keys := known.keys("app"); len(keys) != 0 {
+		t.Errorf("merge created keys %v, want none", keys)
+	}
+
+	unknownLanguage := newFakeAccent(t, "fr")
+	body, contentType = uploadForm(t, "json")
+	if got := fakeStatus(t, unknownLanguage, http.MethodPost, "/add-translations", body, contentType); got != http.StatusNotFound {
+		t.Errorf("add-translations for a language not in the project = HTTP %d, want 404", got)
 	}
 }

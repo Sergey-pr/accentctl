@@ -1245,3 +1245,20 @@ func TestSyncWarnsOnceAboutAMissingLanguage(t *testing.T) {
 		})
 	}
 }
+
+func TestTranslationsOnlyForUnsyncedDocumentDoesNotBlameLanguage(t *testing.T) {
+	resetFlags(t)
+	syncTranslationsOnly = true
+	fake := newFakeAccent(t, "en", "fr")
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
+
+	out, err := captureStdout(t, func() error { return runSync(nil, nil) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "has no") {
+		t.Errorf("output blames the fr language for a document that is not synced yet:\n%s", out)
+	}
+}
