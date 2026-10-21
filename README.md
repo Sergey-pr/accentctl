@@ -45,9 +45,15 @@ paths always resolve against the project root.
 
 ### A note on `format`
 
-`format` is the format of your **localization** files, and it is passed through to
-Accent on every request. Only `pull` is format-agnostic: it streams whatever Accent
-returns straight to disk.
+`format` is the format of your **localization** files, and accentctl passes it to
+Accent on every request. It defaults to `json` when you leave it out, and case does
+not matter (`JSON` works too).
+
+`pull` works with every format Accent supports and writes files exactly as Accent
+returns them. For `json` it first checks that the response is a JSON object, so a
+login page or proxy error served with status 200 cannot overwrite your local files:
+the command stops with an error instead. `sync` and `cleanup` apply the same check to
+the server's copy before they upload or pull anything.
 
 `sync`, `cleanup` and `status` **support `"json"` only**: they read your local files
 with a JSON parser to diff keys against the server. Configuring any other format makes
@@ -99,6 +105,19 @@ it speeds them up considerably — check what your instance tolerates first.
 | `%slug%`               | Language slug (e.g. `fr`, `de`)    |
 | `%original_file_name%` | Source filename with extension     |
 | `%document_path%`      | Source filename without extension  |
+
+`target` must contain `%slug%`, because accentctl finds your languages by matching it
+against your files. A target without it is rejected when the config loads, before
+anything is sent to Accent, and `accentctl init` asks for the target again until it
+has one.
+
+### Source language
+
+`sync`, `cleanup` and `status` need to know the language of each source file. Set it
+with `language`, or keep your source files inside the target pattern so accentctl can
+read the language from the path: with `"target": "localization/%slug%/%original_file_name%"`,
+a source of `localization/en/*.json` is `en`. If neither works for a source file, those
+commands stop before sending any request and name the file.
 
 ### Hooks
 
@@ -221,6 +240,20 @@ accentctl pull --order-by -key
 Languages are discovered from your local filesystem: `pull` only fetches a language
 that already has a matching local file. To start tracking a language added on the
 Accent side, create its file first, e.g. an empty `{}` at `localization/de/app.json`.
+
+#### When Accent does not have a language
+
+If a local folder belongs to a language the Accent project does not have, `pull` skips
+it and says so:
+
+```
+localization/de/app.json: skipped, the Accent project has no "de" language (add it in Accent or rename the folder)
+```
+
+Add the language to the project in Accent, or rename the folder if its name does not
+match the language's slug there. `sync`, `cleanup` and `status` report it in the same
+words. A document that has never been synced is not reported, because Accent has
+nothing to compare it against yet.
 
 ### `accentctl cleanup`
 
