@@ -1262,3 +1262,44 @@ func TestTranslationsOnlyForUnsyncedDocumentDoesNotBlameLanguage(t *testing.T) {
 		t.Errorf("output blames the fr language for a document that is not synced yet:\n%s", out)
 	}
 }
+
+func TestSyncAndCleanupWordTheSameFailureAlike(t *testing.T) {
+	path := filepath.Join("localization", "en", "app.json")
+	scenarios := map[string]func(t *testing.T){
+		"export is not JSON": func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte("<html>Sign in</html>"))
+			}))
+			t.Cleanup(srv.Close)
+			setupProject(t, srv.URL)
+			writeLocalFile(t, "en", "app", `{"a":"A"}`)
+		},
+		"local file is not JSON": func(t *testing.T) {
+			fake := newFakeAccent(t, "en")
+			fake.seed("app", "en", [][2]string{{"a", "A"}})
+			setupProject(t, fake.URL())
+			writeLocalFile(t, "en", "app", `{"a": `)
+		},
+	}
+	commands := map[string]func(*cobra.Command, []string) error{"sync": runSync, "cleanup": runCleanup}
+	for name, setup := range scenarios {
+		t.Run(name, func(t *testing.T) {
+			errs := map[string]string{}
+			for cmd, run := range commands {
+				resetFlags(t)
+				setup(t)
+				err := run(nil, nil)
+				if err == nil {
+					t.Fatalf("%s succeeded, want an error", cmd)
+				}
+				errs[cmd] = err.Error()
+			}
+			if errs["sync"] != errs["cleanup"] {
+				t.Errorf("sync and cleanup word the same failure differently:\n  sync:    %s\n  cleanup: %s", errs["sync"], errs["cleanup"])
+			}
+			if n := strings.Count(errs["sync"], path); n != 1 {
+				t.Errorf("sync error names the file %d times, want once: %s", n, errs["sync"])
+			}
+		})
+	}
+}

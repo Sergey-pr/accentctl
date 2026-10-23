@@ -290,7 +290,7 @@ func syncFileChunked(client *api.Client, doc helpers.Document, force bool) (newN
 
 	chunks, newNodes, err := helpers.NewKeysChunksWithNodes(doc.LocalPath, existing, constants.ChunkSize)
 	if err != nil {
-		return nil, false, fmt.Errorf("%s: chunking failed: %w", doc.LocalPath, err)
+		return nil, false, err
 	}
 
 	defer func() {

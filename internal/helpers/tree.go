@@ -182,7 +182,7 @@ func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int
 
 	existingNodes, err := ServerNodes(existingData)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("%s: %w", localPath, err)
 	}
 	newNodes, _ = DiffNodes(CollectNodes(localObj, nil), existingNodes)
 	if len(newNodes) == 0 {
@@ -193,7 +193,7 @@ func NewKeysChunksWithNodes(localPath string, existingData []byte, chunkSize int
 		end := min(start+chunkSize, len(newNodes))
 		path, err := WriteNodesTempFile(slices.Concat(existingNodes, newNodes[:end]), "accentctl-chunk-*.json")
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("%s: %w", localPath, err)
 		}
 		paths = append(paths, path)
 	}
