@@ -86,16 +86,9 @@ func diffWithAccent(client *api.Client, doc helpers.Document) (toPush, toDelete 
 	if err != nil {
 		return 0, 0, found, err
 	}
-	var serverNodes []helpers.NodeEntry
-	if len(existingData) > 0 {
-		accObj, err := helpers.ParseJSONObject(existingData)
-		if err != nil {
-			output.Info(fmt.Sprintf("%s: skipping malformed server response: %v", doc.LocalPath, err))
-			return 0, 0, found, nil
-		}
-		if accObj != nil {
-			serverNodes = helpers.CollectNodes(accObj, nil)
-		}
+	serverNodes, err := helpers.ServerNodes(existingData)
+	if err != nil {
+		return 0, 0, found, fmt.Errorf("%s: %w", doc.LocalPath, err)
 	}
 
 	added, removed := helpers.DiffNodes(helpers.CollectNodes(localObj, nil), serverNodes)

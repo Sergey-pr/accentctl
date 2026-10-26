@@ -863,13 +863,12 @@ func TestTargetWithoutSlugIsRejectedBeforeContactingServer(t *testing.T) {
 	}
 }
 
-func TestStatusDiffWithUnusableServerResponse(t *testing.T) {
+func TestStatusDiffRejectsUnusableServerResponse(t *testing.T) {
 	tests := []struct {
-		name, body       string
-		toPush, toDelete int
+		name, body, wantErr string
 	}{
-		{"malformed is skipped", `not json`, 0, 0},
-		{"non-object means no keys", `["a"]`, 2, 0},
+		{"malformed", `not json`, "not valid JSON"},
+		{"not an object", `["a"]`, "not a JSON object"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -881,12 +880,10 @@ func TestStatusDiffWithUnusableServerResponse(t *testing.T) {
 			writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
 
 			client := api.New(srv.URL, fakeAPIKey, false, 0)
-			toPush, toDelete, _, err := diffWithAccent(client, helpers.Document{LocalPath: filepath.Join("localization", "en", "app.json"), Path: "app", Format: "json", Language: "en"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if toPush != tt.toPush || toDelete != tt.toDelete {
-				t.Errorf("diffWithAccent = (push %d, delete %d), want (%d, %d)", toPush, toDelete, tt.toPush, tt.toDelete)
+			path := filepath.Join("localization", "en", "app.json")
+			_, _, _, err := diffWithAccent(client, helpers.Document{LocalPath: path, Path: "app", Format: "json", Language: "en"})
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) || !strings.Contains(err.Error(), path) {
+				t.Errorf("err = %v, want it to name %s and say %q", err, path, tt.wantErr)
 			}
 		})
 	}
@@ -1263,7 +1260,7 @@ func TestTranslationsOnlyForUnsyncedDocumentDoesNotBlameLanguage(t *testing.T) {
 	}
 }
 
-func TestSyncAndCleanupWordTheSameFailureAlike(t *testing.T) {
+func TestCommandsWordTheSameFailureAlike(t *testing.T) {
 	path := filepath.Join("localization", "en", "app.json")
 	scenarios := map[string]func(t *testing.T){
 		"export is not JSON": func(t *testing.T) {
@@ -1281,7 +1278,7 @@ func TestSyncAndCleanupWordTheSameFailureAlike(t *testing.T) {
 			writeLocalFile(t, "en", "app", `{"a": `)
 		},
 	}
-	commands := map[string]func(*cobra.Command, []string) error{"sync": runSync, "cleanup": runCleanup}
+	commands := map[string]func(*cobra.Command, []string) error{"sync": runSync, "cleanup": runCleanup, "status": runStatus}
 	for name, setup := range scenarios {
 		t.Run(name, func(t *testing.T) {
 			errs := map[string]string{}
@@ -1294,8 +1291,10 @@ func TestSyncAndCleanupWordTheSameFailureAlike(t *testing.T) {
 				}
 				errs[cmd] = err.Error()
 			}
-			if errs["sync"] != errs["cleanup"] {
-				t.Errorf("sync and cleanup word the same failure differently:\n  sync:    %s\n  cleanup: %s", errs["sync"], errs["cleanup"])
+			for cmd, msg := range errs {
+				if msg != errs["sync"] {
+					t.Errorf("%s words the failure differently from sync:\n  sync: %s\n  %s: %s", cmd, errs["sync"], cmd, msg)
+				}
 			}
 			if n := strings.Count(errs["sync"], path); n != 1 {
 				t.Errorf("sync error names the file %d times, want once: %s", n, errs["sync"])
