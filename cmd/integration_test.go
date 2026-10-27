@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -988,25 +987,21 @@ func TestConfiguredLanguageSatisfiesSourceLanguageCheck(t *testing.T) {
 
 func TestSyncWarnsWhenAccentLacksALocalLanguage(t *testing.T) {
 	resetFlags(t)
-	var out bytes.Buffer
-	stdout := color.Output
-	color.Output = &out
-	t.Cleanup(func() { color.Output = stdout })
-
 	fake := newFakeAccent(t, "en", "fr")
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
 
-	if err := runSync(nil, nil); err != nil {
+	out, err := captureStdout(t, func() error { return runSync(nil, nil) })
+	if err != nil {
 		t.Fatal(err)
 	}
 	if got := fake.get("app", "fr", "a"); got != "A-fr" {
 		t.Errorf("fr.a = %q, want the local translation pushed", got)
 	}
-	if !strings.Contains(out.String(), `app.json: skipped, the Accent project has no "de" language`) {
-		t.Errorf("output does not warn about the missing de language:\n%s", out.String())
+	if !strings.Contains(out, `app.json: skipped, the Accent project has no "de" language`) {
+		t.Errorf("output does not warn about the missing de language:\n%s", out)
 	}
 }
 
