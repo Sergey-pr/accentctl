@@ -124,7 +124,8 @@ commands stop before sending any request and name the file.
 Shell commands that run around `accentctl sync` or `accentctl pull`, defined per file
 entry in the config. Hooks run through `sh -c` on macOS and Linux, and through
 `cmd /c` on Windows. They run in sequence, and the first one to exit non-zero aborts
-the command.
+the command. A hook's output stays hidden while it succeeds. If it fails, the error
+includes everything it printed.
 
 > **Hooks run arbitrary shell commands from `accent.json`.** That is the point of the
 > feature, but it means the config is executable content: treat an `accent.json` from an
@@ -171,6 +172,9 @@ Global flags, available on every command:
 |-------------------|-------------------------------------------------|
 | `--verbose`, `-v` | Log HTTP requests and responses                 |
 | `--version`       | Print the version (releases only; `dev` if built from source) |
+
+On a terminal, uploads show a progress bar. When output goes to a CI log or a file
+instead, accentctl prints one line per chunk.
 
 ### `accentctl sync`
 
@@ -287,7 +291,9 @@ accentctl init
 
 ### `accentctl key set`
 
-Saves an API key to `accent.local.json` with mode `0600`.
+Saves an API key to `accent.local.json` with mode `0600`. The file goes next to your
+`accent.json`, so running the command from a subdirectory still saves it in the right
+place. If there is no config yet, it goes in the current directory.
 
 ```sh
 accentctl key set --stdin < key.txt
