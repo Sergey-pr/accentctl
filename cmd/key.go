@@ -13,30 +13,31 @@ import (
 	"github.com/sergey-pr/accentctl/internal/config"
 )
 
-var keyCmd = &cobra.Command{
-	Use:   "key",
-	Short: "Manage your local API key",
-}
+func newKeyCmd() *cobra.Command {
+	keyCmd := &cobra.Command{
+		Use:   "key",
+		Short: "Manage your local API key",
+	}
 
-var keySetCmd = &cobra.Command{
-	Use:   "set [apikey]",
-	Short: "Save an API key to accent.local.json (gitignored)",
-	Args:  cobra.MaximumNArgs(1),
-	Example: `  accentctl key set --stdin < key.txt
+	var fromStdin bool
+	setCmd := &cobra.Command{
+		Use:   "set [apikey]",
+		Short: "Save an API key to accent.local.json (gitignored)",
+		Args:  cobra.MaximumNArgs(1),
+		Example: `  accentctl key set --stdin < key.txt
   echo your-api-key | accentctl key set --stdin
   accentctl key set your-api-key`,
-	RunE: runKeySet,
+		RunE: func(_ *cobra.Command, args []string) error {
+			return runKeySet(args, fromStdin)
+		},
+	}
+	setCmd.Flags().BoolVar(&fromStdin, "stdin", false, "Read the API key from stdin instead of an argument")
+	keyCmd.AddCommand(setCmd)
+	return keyCmd
 }
 
-var keyStdin bool
-
-func init() {
-	keySetCmd.Flags().BoolVar(&keyStdin, "stdin", false, "Read the API key from stdin instead of an argument")
-	keyCmd.AddCommand(keySetCmd)
-}
-
-func runKeySet(_ *cobra.Command, args []string) error {
-	key, err := readAPIKey(args, os.Stdin)
+func runKeySet(args []string, fromStdin bool) error {
+	key, err := readAPIKey(args, os.Stdin, fromStdin)
 	if err != nil {
 		return err
 	}
@@ -45,8 +46,8 @@ func runKeySet(_ *cobra.Command, args []string) error {
 
 // readAPIKey takes the key from stdin or the argument. Passing it as an argument
 // leaves the secret in shell history, so --stdin is the documented path.
-func readAPIKey(args []string, stdin io.Reader) (string, error) {
-	if keyStdin {
+func readAPIKey(args []string, stdin io.Reader, fromStdin bool) (string, error) {
+	if fromStdin {
 		if len(args) > 0 {
 			return "", fmt.Errorf("pass the key either as an argument or via --stdin, not both")
 		}

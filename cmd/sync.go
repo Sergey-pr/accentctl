@@ -16,10 +16,20 @@ import (
 	"github.com/sergey-pr/accentctl/internal/output"
 )
 
-var syncCmd = &cobra.Command{
-	Use:   "sync",
-	Short: "Add new keys to Accent and force their translations",
-	Long: `Uploads new source keys in chunks and force-pushes translations for
+type syncOptions struct {
+	orderBy          string
+	force            bool
+	yes              bool
+	translationsOnly bool
+	verbose          bool
+}
+
+func newSyncCmd(global *globalOptions) *cobra.Command {
+	var opts syncOptions
+	cmd := &cobra.Command{
+		Use:   "sync",
+		Short: "Add new keys to Accent and force their translations",
+		Long: `Uploads new source keys in chunks and force-pushes translations for
 those new keys to all target languages.
 
 With --force: deletes every key on the server first, then re-uploads all
@@ -31,32 +41,27 @@ pushes every local translation with a passive merge, which fills only the
 strings no reviewer has corrected in Accent. Use it to recover when a sync
 was interrupted after its keys were uploaded but before their translations
 were pushed.`,
-	Example: `  accentctl sync
+		Example: `  accentctl sync
   accentctl sync --force
   accentctl sync --translations-only
   accentctl sync --order-by key`,
-	RunE: runSync,
-}
-
-var (
-	syncOrderBy          string
-	syncForce            bool
-	syncYes              bool
-	syncTranslationsOnly bool
-)
-
-func init() {
-	syncCmd.Flags().StringVar(&syncOrderBy,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			opts.verbose = global.verbose
+			return runSync(opts)
+		},
+	}
+	cmd.Flags().StringVar(&opts.orderBy,
 		"order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
-	syncCmd.Flags().BoolVar(&syncForce,
+	cmd.Flags().BoolVar(&opts.force,
 		"force", false, "Delete all server keys, then re-upload everything and force all translations")
-	syncCmd.Flags().BoolVar(&syncYes,
+	cmd.Flags().BoolVar(&opts.yes,
 		"yes", false, "Skip the --force confirmation prompt (for non-interactive use)")
-	syncCmd.Flags().BoolVar(&syncTranslationsOnly,
+	cmd.Flags().BoolVar(&opts.translationsOnly,
 		"translations-only", false, "Push local translations with a passive merge without uploading keys or deleting anything")
+	return cmd
 }
 
-func runSync(_ *cobra.Command, _ []string) error {
+func runSync(opts syncOptions) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -70,17 +75,17 @@ func runSync(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	if syncForce && syncTranslationsOnly {
+	if opts.force && opts.translationsOnly {
 		return fmt.Errorf("--force and --translations-only are mutually exclusive: --force re-uploads and overwrites everything, --translations-only changes no keys and overwrites no reviewed translations")
 	}
 
-	if syncForce {
-		if err := confirmForceSync(cfg); err != nil {
+	if opts.force {
+		if err := confirmForceSync(cfg, opts.yes); err != nil {
 			return err
 		}
 	}
 
-	client := newClient(cfg)
+	client := newClient(cfg, opts.verbose)
 
 	for _, file := range cfg.Files {
 		if err := runHooks(file.Hooks.BeforeSync); err != nil {
@@ -88,11 +93,11 @@ func runSync(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	if syncTranslationsOnly {
-		return runSyncTranslationsOnly(client, cfg)
+	if opts.translationsOnly {
+		return runSyncTranslationsOnly(client, cfg, opts)
 	}
 
-	progress, err := runFullSync(client, cfg)
+	progress, err := runFullSync(client, cfg, opts)
 	if err != nil && progress.needsRecovery() {
 		return fmt.Errorf("%w\n\n%s", err, syncRecoveryHint)
 	}
@@ -118,7 +123,7 @@ func (p syncProgress) needsRecovery() bool {
 	return p.keysUploaded && !p.translationsPushed
 }
 
-func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
+func runFullSync(client *api.Client, cfg *config.Config, opts syncOptions) (syncProgress, error) {
 	var progress syncProgress
 	warned := map[string]bool{}
 
@@ -140,13 +145,13 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 		for _, src := range sources {
 			doc := helpers.SourceDocument(file, src)
 
-			if syncForce {
-				if err := deleteAllKeysChunked(client, doc); err != nil {
+			if opts.force {
+				if err := deleteAllKeysChunked(client, doc, opts.verbose); err != nil {
 					return progress, err
 				}
 			}
 
-			newNodes, uploaded, err := syncFileChunked(client, doc, syncForce)
+			newNodes, uploaded, err := syncFileChunked(client, doc, opts.force, opts.verbose)
 			if uploaded {
 				progress.keysUploaded = true
 			}
@@ -162,39 +167,39 @@ func runFullSync(client *api.Client, cfg *config.Config) (syncProgress, error) {
 
 	output.Section("Adding translations")
 	for _, r := range results {
-		if syncForce {
-			if err := helpers.AddAllTranslations(client, r.file, "force", verbose, warned); err != nil {
+		if opts.force {
+			if err := helpers.AddAllTranslations(client, r.file, "force", opts.verbose, warned); err != nil {
 				return progress, err
 			}
 		} else if len(r.keySet) > 0 {
-			if err := helpers.AddTranslationsForNewKeys(client, r.file, r.keySet, verbose, warned); err != nil {
+			if err := helpers.AddTranslationsForNewKeys(client, r.file, r.keySet, opts.verbose, warned); err != nil {
 				return progress, err
 			}
 		}
 	}
 	progress.translationsPushed = true
 
-	return progress, finishSync(client, cfg, warned)
+	return progress, finishSync(client, cfg, opts.orderBy, warned)
 }
 
 // runSyncTranslationsOnly recovers a sync that died between uploading keys and
 // pushing translations; the passive merge keeps reviewer-corrected strings, so it is safe to re-run.
-func runSyncTranslationsOnly(client *api.Client, cfg *config.Config) error {
+func runSyncTranslationsOnly(client *api.Client, cfg *config.Config, opts syncOptions) error {
 	output.Section("Adding translations")
 	warned := map[string]bool{}
 	for _, file := range cfg.Files {
-		if err := helpers.AddAllTranslations(client, file, "passive", verbose, warned); err != nil {
+		if err := helpers.AddAllTranslations(client, file, "passive", opts.verbose, warned); err != nil {
 			return err
 		}
 	}
-	return finishSync(client, cfg, warned)
+	return finishSync(client, cfg, opts.orderBy, warned)
 }
 
 // finishSync pulls the server's copy over local files and runs afterSync hooks.
-func finishSync(client *api.Client, cfg *config.Config, warned map[string]bool) error {
+func finishSync(client *api.Client, cfg *config.Config, orderBy string, warned map[string]bool) error {
 	output.Section("Pulling updated files")
 	for _, file := range cfg.Files {
-		if err := pullFile(client, file, syncOrderBy, warned); err != nil {
+		if err := pullFile(client, file, orderBy, warned); err != nil {
 			return err
 		}
 	}
@@ -209,7 +214,7 @@ func finishSync(client *api.Client, cfg *config.Config, warned map[string]bool) 
 
 // confirmForceSync gates the destructive --force path: it wants --yes or an
 // interactive "yes", and refuses to run on a non-TTY without --yes.
-func confirmForceSync(cfg *config.Config) error {
+func confirmForceSync(cfg *config.Config, yes bool) error {
 	docCount := 0
 	for _, file := range cfg.Files {
 		sources, err := file.Sources()
@@ -221,7 +226,7 @@ func confirmForceSync(cfg *config.Config) error {
 
 	output.Warn(fmt.Sprintf("sync --force deletes ALL keys for %d document(s) on %s before re-uploading.", docCount, cfg.APIURL))
 
-	if syncYes {
+	if yes {
 		return nil
 	}
 
@@ -242,7 +247,7 @@ func confirmForceSync(cfg *config.Config) error {
 
 // deleteAllKeysChunked wipes a document by uploading ever-smaller files via
 // smart sync, ending with an empty object that clears the last keys.
-func deleteAllKeysChunked(client *api.Client, doc helpers.Document) error {
+func deleteAllKeysChunked(client *api.Client, doc helpers.Document, verbose bool) error {
 	existingData, err := serverExport(client, doc)
 	if err != nil {
 		return fmt.Errorf("%s: could not fetch existing keys: %w", doc.LocalPath, err)
@@ -268,7 +273,7 @@ func deleteAllKeysChunked(client *api.Client, doc helpers.Document) error {
 			if verbose {
 				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunk, nChunks, tmpName))
 			}
-			return syncChunk(client, doc, tmpName, chunk, nChunks, opts)
+			return syncChunk(client, doc, tmpName, chunk, nChunks, opts, verbose)
 		})
 		if err != nil {
 			return err
@@ -279,7 +284,7 @@ func deleteAllKeysChunked(client *api.Client, doc helpers.Document) error {
 
 // syncFileChunked uploads keys missing from the server in cumulative chunks;
 // force treats every local key as new. uploaded stays true next to an error so the caller knows keys already landed.
-func syncFileChunked(client *api.Client, doc helpers.Document, force bool) (newNodes []helpers.NodeEntry, uploaded bool, err error) {
+func syncFileChunked(client *api.Client, doc helpers.Document, force, verbose bool) (newNodes []helpers.NodeEntry, uploaded bool, err error) {
 	var existing []byte
 	if !force {
 		existing, err = serverExport(client, doc)

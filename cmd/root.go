@@ -12,30 +12,45 @@ import (
 	"github.com/sergey-pr/accentctl/internal/helpers"
 )
 
-var verbose bool
+type globalOptions struct {
+	verbose bool
+}
 
-var root = &cobra.Command{
-	Use:   "accentctl",
-	Short: "A CLI tool for Accent, the translation management platform",
-	Long: `accentctl lets you sync, pull, and manage translations
+func newRootCmd(version string) *cobra.Command {
+	var global globalOptions
+	root := &cobra.Command{
+		Use:   "accentctl",
+		Short: "A CLI tool for Accent, the translation management platform",
+		Long: `accentctl lets you sync, pull, and manage translations
 via the Accent API (https://www.accent.reviews/).
 
 Configuration is read from accent.json (or accent.yaml / accent.toml)
 in the current directory. The ACCENT_API_KEY and ACCENT_API_URL
 environment variables override the values in the config file.`,
-	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
-		cmd.SilenceUsage = true
-	},
+		Version: version,
+		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+			cmd.SilenceUsage = true
+		},
+	}
+	root.PersistentFlags().BoolVarP(&global.verbose, "verbose", "v", false, "Log HTTP requests and responses")
+	root.AddCommand(
+		newPullCmd(&global),
+		newSyncCmd(&global),
+		newCleanupCmd(&global),
+		newStatusCmd(&global),
+		newInitCmd(),
+		newKeyCmd(),
+	)
+	return root
 }
 
 func Execute(version string) {
-	root.Version = version
-	if err := root.Execute(); err != nil {
+	if err := newRootCmd(version).Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
-func newClient(cfg *config.Config) *api.Client {
+func newClient(cfg *config.Config, verbose bool) *api.Client {
 	return api.New(cfg.APIURL, cfg.APIKey, verbose, cfg.RequestDelay)
 }
 
@@ -77,15 +92,4 @@ func requireSourceLanguages(cfg *config.Config) error {
 		}
 	}
 	return nil
-}
-
-func init() {
-	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Log HTTP requests and responses")
-
-	root.AddCommand(pullCmd)
-	root.AddCommand(syncCmd)
-	root.AddCommand(cleanupCmd)
-	root.AddCommand(statusCmd)
-	root.AddCommand(initCmd)
-	root.AddCommand(keyCmd)
 }

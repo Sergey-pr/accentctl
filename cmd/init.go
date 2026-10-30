@@ -13,14 +13,18 @@ import (
 	"github.com/sergey-pr/accentctl/internal/output"
 )
 
-var initCmd = &cobra.Command{
-	Use:     "init",
-	Short:   "Create a starter accent.json config file",
-	Example: `  accentctl init`,
-	RunE:    runInit,
+func newInitCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "init",
+		Short:   "Create a starter accent.json config file",
+		Example: `  accentctl init`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runInit()
+		},
+	}
 }
 
-func runInit(_ *cobra.Command, _ []string) error {
+func runInit() error {
 	const configFile = "accent.json"
 
 	if _, err := os.Stat(configFile); err == nil {

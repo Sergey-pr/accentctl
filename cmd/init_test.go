@@ -31,7 +31,7 @@ func runInitWithInput(t *testing.T, input string) error {
 		os.Stdin = stdin
 		_ = f.Close()
 	})
-	return runInit(nil, nil)
+	return runCLI("init")
 }
 
 func TestInitAsksAgainForTargetWithoutSlug(t *testing.T) {

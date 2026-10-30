@@ -13,24 +13,31 @@ import (
 	"github.com/sergey-pr/accentctl/internal/output"
 )
 
-var cleanupCmd = &cobra.Command{
-	Use:   "cleanup",
-	Short: "Remove Accent keys that are no longer in local source files",
-	Long: `Uploads each source file in cumulative chunks using smart sync.
+type cleanupOptions struct {
+	orderBy string
+	verbose bool
+}
+
+func newCleanupCmd(global *globalOptions) *cobra.Command {
+	var opts cleanupOptions
+	cmd := &cobra.Command{
+		Use:   "cleanup",
+		Short: "Remove Accent keys that are no longer in local source files",
+		Long: `Uploads each source file in cumulative chunks using smart sync.
 Orphaned keys (present in Accent but not in the local file) are deleted.`,
-	Example: `  accentctl cleanup
+		Example: `  accentctl cleanup
   accentctl cleanup --order-by index`,
-	RunE: runCleanup,
-}
-
-var cleanupOrderBy string
-
-func init() {
-	cleanupCmd.Flags().StringVar(&cleanupOrderBy,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			opts.verbose = global.verbose
+			return runCleanup(opts)
+		},
+	}
+	cmd.Flags().StringVar(&opts.orderBy,
 		"order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
+	return cmd
 }
 
-func runCleanup(_ *cobra.Command, _ []string) error {
+func runCleanup(opts cleanupOptions) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -44,7 +51,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	client := newClient(cfg)
+	client := newClient(cfg, opts.verbose)
 	output.Section("Cleaning up")
 
 	for _, file := range cfg.Files {
@@ -54,7 +61,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 		}
 
 		for _, src := range sources {
-			if err := cleanupFileChunked(client, helpers.SourceDocument(file, src)); err != nil {
+			if err := cleanupFileChunked(client, helpers.SourceDocument(file, src), opts.verbose); err != nil {
 				return err
 			}
 		}
@@ -63,7 +70,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 	output.Section("Pulling updated files")
 	warned := map[string]bool{}
 	for _, file := range cfg.Files {
-		if err := pullFile(client, file, cleanupOrderBy, warned); err != nil {
+		if err := pullFile(client, file, opts.orderBy, warned); err != nil {
 			return err
 		}
 	}
@@ -73,7 +80,7 @@ func runCleanup(_ *cobra.Command, _ []string) error {
 
 // cleanupFileChunked deletes keys that exist in Accent but not locally. Each
 // smart-sync upload holds all local keys plus the orphans not yet removed, so one chunk of orphans drops per round.
-func cleanupFileChunked(client *api.Client, doc helpers.Document) error {
+func cleanupFileChunked(client *api.Client, doc helpers.Document, verbose bool) error {
 	existingData, err := serverExport(client, doc)
 	if err != nil {
 		return fmt.Errorf("%s: could not fetch existing keys: %w", doc.LocalPath, err)
@@ -108,7 +115,7 @@ func cleanupFileChunked(client *api.Client, doc helpers.Document) error {
 			if verbose {
 				output.Info(fmt.Sprintf("chunk %d/%d: %s", chunkNum, nChunks, tmpName))
 			}
-			return syncChunk(client, doc, tmpName, chunkNum, nChunks, opts)
+			return syncChunk(client, doc, tmpName, chunkNum, nChunks, opts, verbose)
 		})
 		if err != nil {
 			return err
@@ -118,7 +125,7 @@ func cleanupFileChunked(client *api.Client, doc helpers.Document) error {
 }
 
 func syncChunk(client *api.Client, doc helpers.Document, tmpName string, chunkNum, nChunks int,
-	opts api.SyncOptions) error {
+	opts api.SyncOptions, verbose bool) error {
 	err := client.Sync(tmpName, doc.Path, doc.Format, doc.Language, opts)
 	if err != nil {
 		return fmt.Errorf("%s chunk %d/%d: %w", doc.LocalPath, chunkNum, nChunks, err)

@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 
 	"github.com/sergey-pr/accentctl/internal/api"
 	"github.com/sergey-pr/accentctl/internal/config"
@@ -69,16 +68,11 @@ func readLocalFile(t *testing.T, slug, doc string) string {
 	return string(data)
 }
 
-func resetFlags(t *testing.T) {
-	t.Helper()
-	t.Cleanup(func() {
-		syncOrderBy = "key"
-		syncForce = false
-		syncYes = false
-		syncTranslationsOnly = false
-		pullOrderBy = "key"
-		cleanupOrderBy = "key"
-	})
+func runCLI(args ...string) error {
+	root := newRootCmd("test")
+	root.SetArgs(args)
+	root.SetErr(io.Discard)
+	return root.Execute()
 }
 
 // manyPairs returns n key/value pairs k000..k<n-1> with the given value prefix.
@@ -125,20 +119,19 @@ func keyCounts(calls []uploadCall) []int {
 // The JSON-only commands must reject a non-JSON format before touching the
 // network, rather than failing later inside a JSON parser.
 func TestNonJSONFormatFailsFastOnJSONOnlyCommands(t *testing.T) {
-	commands := map[string]func(*cobra.Command, []string) error{
-		"sync":    runSync,
-		"cleanup": runCleanup,
-		"status":  runStatus,
+	commands := map[string][]string{
+		"sync":    {"sync"},
+		"cleanup": {"cleanup"},
+		"status":  {"status"},
 	}
-	for name, run := range commands {
+	for name, args := range commands {
 		t.Run(name, func(t *testing.T) {
-			resetFlags(t)
 			fake := newFakeAccent(t, "en", "fr")
 			setupProjectWithFormat(t, fake.URL(), "yaml")
 			writeLocalFile(t, "en", "app", `{"a":"A"}`)
 			writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-			err := run(nil, nil)
+			err := runCLI(args...)
 			if err == nil {
 				t.Fatalf("%s with format yaml succeeded, want a clear error", name)
 			}
@@ -157,7 +150,6 @@ func TestNonJSONFormatFailsFastOnJSONOnlyCommands(t *testing.T) {
 func TestJSONFormatAndUnsetFormatAreAccepted(t *testing.T) {
 	for _, format := range []string{"json", ""} {
 		t.Run("format="+format, func(t *testing.T) {
-			resetFlags(t)
 			fake := newFakeAccent(t, "en", "fr")
 			fake.seed("app", "en", [][2]string{{"a", "A"}})
 			fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -165,7 +157,7 @@ func TestJSONFormatAndUnsetFormatAreAccepted(t *testing.T) {
 			writeLocalFile(t, "en", "app", `{"a":"A"}`)
 			writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-			if err := runStatus(nil, nil); err != nil {
+			if err := runCLI("status"); err != nil {
 				t.Errorf("status with format %q failed: %v", format, err)
 			}
 		})
@@ -175,20 +167,19 @@ func TestJSONFormatAndUnsetFormatAreAccepted(t *testing.T) {
 // A local file that is valid JSON but not an object used to be handled three
 // different ways; every command must now name the file and stop.
 func TestNonObjectLocalFileIsRejectedConsistently(t *testing.T) {
-	commands := map[string]func(*cobra.Command, []string) error{
-		"sync":    runSync,
-		"cleanup": runCleanup,
-		"status":  runStatus,
+	commands := map[string][]string{
+		"sync":    {"sync"},
+		"cleanup": {"cleanup"},
+		"status":  {"status"},
 	}
-	for name, run := range commands {
+	for name, args := range commands {
 		t.Run(name, func(t *testing.T) {
-			resetFlags(t)
 			fake := newFakeAccent(t, "en", "fr")
 			fake.seed("app", "en", [][2]string{{"a", "A"}})
 			setupProject(t, fake.URL())
 			writeLocalFile(t, "en", "app", `["a","b"]`)
 
-			err := run(nil, nil)
+			err := runCLI(args...)
 			if err == nil {
 				t.Fatalf("%s on a top-level JSON array succeeded, want an error", name)
 			}
@@ -203,13 +194,12 @@ func TestNonObjectLocalFileIsRejectedConsistently(t *testing.T) {
 }
 
 func TestMalformedLocalFileIsRejected(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"a": `)
 
-	err := runSync(nil, nil)
+	err := runCLI("sync")
 	if err == nil {
 		t.Fatal("sync on malformed JSON succeeded, want an error")
 	}
@@ -219,7 +209,6 @@ func TestMalformedLocalFileIsRejected(t *testing.T) {
 }
 
 func TestSyncPushesNewKeysAndTheirTranslations(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -228,7 +217,7 @@ func TestSyncPushesNewKeysAndTheirTranslations(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr","b":"B-fr"}`)
 
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -257,13 +246,12 @@ func TestSyncPushesNewKeysAndTheirTranslations(t *testing.T) {
 }
 
 func TestSyncNewDocumentNotOnServerIsTreatedAsEmpty(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en") // nothing seeded: /export 404s for "app"
 
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
 
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync"); err != nil {
 		t.Fatalf("sync against a 404 document should treat it as empty, got %v", err)
 	}
 
@@ -275,7 +263,6 @@ func TestSyncNewDocumentNotOnServerIsTreatedAsEmpty(t *testing.T) {
 }
 
 func TestSyncPushesNewKeyTranslationsInDisjointChunks(t *testing.T) {
-	resetFlags(t)
 	const n = 501 // 2 full chunks of 250 + 1
 
 	fake := newFakeAccent(t, "en", "fr")
@@ -283,7 +270,7 @@ func TestSyncPushesNewKeyTranslationsInDisjointChunks(t *testing.T) {
 	writeLocalFile(t, "en", "app", pairsJSON(t, manyPairs(n, "v")))
 	writeLocalFile(t, "fr", "app", pairsJSON(t, manyPairs(n, "f")))
 
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -307,7 +294,6 @@ func TestSyncPushesNewKeyTranslationsInDisjointChunks(t *testing.T) {
 }
 
 func TestSyncNoNewKeysDoesNotUpload(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -316,7 +302,7 @@ func TestSyncNoNewKeysDoesNotUpload(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -329,7 +315,6 @@ func TestSyncNoNewKeysDoesNotUpload(t *testing.T) {
 }
 
 func TestSyncForceDeletesThenReuploadsInChunks(t *testing.T) {
-	resetFlags(t)
 	const n = 501 // 2 full chunks of 250 + 1
 
 	fake := newFakeAccent(t, "en", "fr")
@@ -339,9 +324,7 @@ func TestSyncForceDeletesThenReuploadsInChunks(t *testing.T) {
 	writeLocalFile(t, "en", "app", pairsJSON(t, manyPairs(n, "v")))
 	writeLocalFile(t, "fr", "app", pairsJSON(t, manyPairs(n, "f")))
 
-	syncForce = true
-	syncYes = true
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync", "--force", "--yes"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -388,7 +371,6 @@ func TestSyncForceDeletesThenReuploadsInChunks(t *testing.T) {
 }
 
 func TestSyncForceWithoutYesAbortsOnNonTTY(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -397,8 +379,7 @@ func TestSyncForceWithoutYesAbortsOnNonTTY(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-	syncForce = true
-	err := runSync(nil, nil)
+	err := runCLI("sync", "--force")
 	if err == nil {
 		t.Fatal("expected --force without --yes on a non-TTY to abort")
 	}
@@ -417,13 +398,12 @@ func interruptSyncAfterKeyUpload(t *testing.T, fake *fakeAccent) {
 	t.Helper()
 	client := api.New(fake.URL(), fakeAPIKey, false, 0)
 	src := filepath.Join("localization", "en", "app.json")
-	if _, _, err := syncFileChunked(client, helpers.Document{LocalPath: src, Path: "app", Format: "json", Language: "en"}, false); err != nil {
+	if _, _, err := syncFileChunked(client, helpers.Document{LocalPath: src, Path: "app", Format: "json", Language: "en"}, false, false); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestSyncTranslationsOnlyRecoversInterruptedSync(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -442,8 +422,7 @@ func TestSyncTranslationsOnlyRecoversInterruptedSync(t *testing.T) {
 
 	syncCallsBefore := len(fake.callsTo("sync"))
 
-	syncTranslationsOnly = true
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync", "--translations-only"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -474,7 +453,6 @@ func TestSyncTranslationsOnlyRecoversInterruptedSync(t *testing.T) {
 // TestInterruptedSyncIsNotFixedByPlainRerun pins down the gap --translations-only
 // closes: a plain re-run recovers nothing and its pull phase destroys what recovery needs.
 func TestInterruptedSyncIsNotFixedByPlainRerun(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -485,7 +463,7 @@ func TestInterruptedSyncIsNotFixedByPlainRerun(t *testing.T) {
 
 	interruptSyncAfterKeyUpload(t, fake)
 
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -501,7 +479,6 @@ func TestInterruptedSyncIsNotFixedByPlainRerun(t *testing.T) {
 }
 
 func TestSyncFailureAfterKeyUploadSuggestsRecovery(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -513,7 +490,7 @@ func TestSyncFailureAfterKeyUploadSuggestsRecovery(t *testing.T) {
 	// Keys upload fine; pushing their translations is what dies.
 	fake.failEndpoint("/add-translations")
 
-	err := runSync(nil, nil)
+	err := runCLI("sync")
 	if err == nil {
 		t.Fatal("expected sync to fail when /add-translations errors")
 	}
@@ -532,7 +509,6 @@ func TestSyncFailureAfterKeyUploadSuggestsRecovery(t *testing.T) {
 }
 
 func TestSyncFailureBeforeAnyKeyUploadDoesNotSuggestRecovery(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -544,7 +520,7 @@ func TestSyncFailureBeforeAnyKeyUploadDoesNotSuggestRecovery(t *testing.T) {
 	// Nothing reaches the server, so no recovery is owed.
 	fake.failEndpoint("/export")
 
-	err := runSync(nil, nil)
+	err := runCLI("sync")
 	if err == nil {
 		t.Fatal("expected sync to fail when /export errors")
 	}
@@ -554,7 +530,6 @@ func TestSyncFailureBeforeAnyKeyUploadDoesNotSuggestRecovery(t *testing.T) {
 }
 
 func TestSyncFailureAfterTranslationsPushedDoesNotSuggestRecovery(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -571,7 +546,7 @@ func TestSyncFailureAfterTranslationsPushedDoesNotSuggestRecovery(t *testing.T) 
 		}
 	})
 
-	err := runSync(nil, nil)
+	err := runCLI("sync")
 	if err == nil {
 		t.Fatal("expected sync to fail when the pull phase errors")
 	}
@@ -584,7 +559,6 @@ func TestSyncFailureAfterTranslationsPushedDoesNotSuggestRecovery(t *testing.T) 
 }
 
 func TestSyncTranslationsOnlyPreservesReviewedTranslations(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -600,8 +574,7 @@ func TestSyncTranslationsOnlyPreservesReviewedTranslations(t *testing.T) {
 	fake.markReviewed("app", "fr", "b", "B-reviewed")
 	fake.markReviewed("app", "fr", "a", "A-reviewed")
 
-	syncTranslationsOnly = true
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync", "--translations-only"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -614,7 +587,6 @@ func TestSyncTranslationsOnlyPreservesReviewedTranslations(t *testing.T) {
 }
 
 func TestSyncTranslationsOnlyRejectsForce(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 
@@ -622,10 +594,7 @@ func TestSyncTranslationsOnlyRejectsForce(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-	syncForce = true
-	syncYes = true
-	syncTranslationsOnly = true
-	if err := runSync(nil, nil); err == nil {
+	if err := runCLI("sync", "--force", "--yes", "--translations-only"); err == nil {
 		t.Fatal("expected --force with --translations-only to be rejected")
 	}
 	if calls := fake.callsTo("sync"); len(calls) != 0 {
@@ -637,7 +606,6 @@ func TestSyncTranslationsOnlyRejectsForce(t *testing.T) {
 }
 
 func TestSyncTranslationsOnlyChunksLargeFiles(t *testing.T) {
-	resetFlags(t)
 	const n = 501 // 2 full chunks of 250 + 1
 
 	fake := newFakeAccent(t, "en", "fr")
@@ -647,8 +615,7 @@ func TestSyncTranslationsOnlyChunksLargeFiles(t *testing.T) {
 
 	interruptSyncAfterKeyUpload(t, fake)
 
-	syncTranslationsOnly = true
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync", "--translations-only"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -667,7 +634,6 @@ func TestSyncTranslationsOnlyChunksLargeFiles(t *testing.T) {
 }
 
 func TestCleanupRemovesOrphanedKeysInChunks(t *testing.T) {
-	resetFlags(t)
 	const orphans = 501
 
 	fake := newFakeAccent(t, "en", "fr")
@@ -679,7 +645,7 @@ func TestCleanupRemovesOrphanedKeysInChunks(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A","b":"B"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr","b":"B-fr"}`)
 
-	if err := runCleanup(nil, nil); err != nil {
+	if err := runCLI("cleanup"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -705,7 +671,6 @@ func TestCleanupRemovesOrphanedKeysInChunks(t *testing.T) {
 }
 
 func TestCleanupNoOrphansDoesNotUpload(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -714,7 +679,7 @@ func TestCleanupNoOrphansDoesNotUpload(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-	if err := runCleanup(nil, nil); err != nil {
+	if err := runCLI("cleanup"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -724,7 +689,6 @@ func TestCleanupNoOrphansDoesNotUpload(t *testing.T) {
 }
 
 func TestCleanupPullsInKeyOrderByDefault(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en")
 	fake.seed("app", "en", [][2]string{{"b", "B"}, {"a", "A"}, {"orphan", "O"}})
 
@@ -732,7 +696,7 @@ func TestCleanupPullsInKeyOrderByDefault(t *testing.T) {
 	sorted := "{\n  \"a\": \"A\",\n  \"b\": \"B\"\n}\n"
 	writeLocalFile(t, "en", "app", sorted)
 
-	if err := runCleanup(nil, nil); err != nil {
+	if err := runCLI("cleanup"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -742,15 +706,13 @@ func TestCleanupPullsInKeyOrderByDefault(t *testing.T) {
 }
 
 func TestCleanupOrderByIndexIsHonored(t *testing.T) {
-	resetFlags(t)
-	cleanupOrderBy = "index"
 	fake := newFakeAccent(t, "en")
 	fake.seed("app", "en", [][2]string{{"b", "B"}, {"a", "A"}})
 
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"b":"B","a":"A"}`)
 
-	if err := runCleanup(nil, nil); err != nil {
+	if err := runCLI("cleanup", "--order-by", "index"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -761,7 +723,6 @@ func TestCleanupOrderByIndexIsHonored(t *testing.T) {
 }
 
 func TestPullSkipsLanguagesMissingOnServer(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en") // project has no fr
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 
@@ -770,7 +731,7 @@ func TestPullSkipsLanguagesMissingOnServer(t *testing.T) {
 	const frBefore = `{"a":"A-fr-local"}`
 	writeLocalFile(t, "fr", "app", frBefore)
 
-	if err := runPull(nil, nil); err != nil {
+	if err := runCLI("pull"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -780,14 +741,13 @@ func TestPullSkipsLanguagesMissingOnServer(t *testing.T) {
 }
 
 func TestPullWritesSortedFiles(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en")
 	fake.seed("app", "en", [][2]string{{"b", "B"}, {"a", "A"}})
 
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{}`)
 
-	if err := runPull(nil, nil); err != nil {
+	if err := runCLI("pull"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -798,7 +758,6 @@ func TestPullWritesSortedFiles(t *testing.T) {
 }
 
 func TestStatusCountsPushAndDelete(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}, {"c", "C"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}, {"c", "C-fr"}})
@@ -816,23 +775,20 @@ func TestStatusCountsPushAndDelete(t *testing.T) {
 		t.Errorf("diffWithAccent = (push %d, delete %d), want (1, 1)", toPush, toDelete)
 	}
 
-	if err := runStatus(nil, nil); err != nil {
+	if err := runCLI("status"); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestTargetWithoutSlugIsRejectedBeforeContactingServer(t *testing.T) {
-	commands := map[string]func(*cobra.Command, []string) error{
-		"pull":    runPull,
-		"sync":    runSync,
-		"cleanup": runCleanup,
-		"status":  runStatus,
+	commands := map[string][]string{
+		"pull":    {"pull"},
+		"sync":    {"sync", "--force", "--yes"},
+		"cleanup": {"cleanup"},
+		"status":  {"status"},
 	}
-	for name, run := range commands {
+	for name, args := range commands {
 		t.Run(name, func(t *testing.T) {
-			resetFlags(t)
-			syncForce = true
-			syncYes = true
 			fake := newFakeAccent(t, "en", "fr")
 			for _, endpoint := range []string{"/export", "/sync", "/add-translations"} {
 				fake.failEndpoint(endpoint)
@@ -854,7 +810,7 @@ func TestTargetWithoutSlugIsRejectedBeforeContactingServer(t *testing.T) {
 			}
 			writeLocalFile(t, "en", "app", `{"a":"A"}`)
 
-			err := run(nil, nil)
+			err := runCLI(args...)
 			if err == nil || !strings.Contains(err.Error(), "%slug%") {
 				t.Fatalf("%s error = %v, want the missing %%slug%% target error", name, err)
 			}
@@ -907,12 +863,11 @@ func TestStatusCountsRepeatedServerKeyOnce(t *testing.T) {
 }
 
 func TestSyncUploadsRepeatedLocalKeyOnce(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en")
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"a":"A","a":"B"}`)
 
-	if err := runSync(nil, nil); err != nil {
+	if err := runCLI("sync"); err != nil {
 		t.Fatal(err)
 	}
 	if keys := fake.keys("app"); len(keys) != 1 {
@@ -928,20 +883,17 @@ func TestSyncUploadsRepeatedLocalKeyOnce(t *testing.T) {
 
 func TestUnresolvableSourceLanguageIsRejectedBeforeContactingServer(t *testing.T) {
 	tests := []struct {
-		name  string
-		run   func(*cobra.Command, []string) error
-		flags func()
+		name string
+		args []string
 	}{
-		{"sync", runSync, func() {}},
-		{"sync --force", runSync, func() { syncForce, syncYes = true, true }},
-		{"sync --translations-only", runSync, func() { syncTranslationsOnly = true }},
-		{"cleanup", runCleanup, func() {}},
-		{"status", runStatus, func() {}},
+		{"sync", []string{"sync"}},
+		{"sync --force", []string{"sync", "--force", "--yes"}},
+		{"sync --translations-only", []string{"sync", "--translations-only"}},
+		{"cleanup", []string{"cleanup"}},
+		{"status", []string{"status"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resetFlags(t)
-			tt.flags()
 			fake := newFakeAccent(t, "en", "fr")
 			for _, endpoint := range []string{"/export", "/sync", "/add-translations"} {
 				fake.failEndpoint(endpoint)
@@ -963,7 +915,7 @@ func TestUnresolvableSourceLanguageIsRejectedBeforeContactingServer(t *testing.T
 			}
 			writeLocalFile(t, "en", "app", `{"a":"A"}`)
 
-			err := tt.run(nil, nil)
+			err := runCLI(tt.args...)
 			if err == nil || !strings.Contains(err.Error(), "source language") || !strings.Contains(err.Error(), "app.json") {
 				t.Fatalf("%s error = %v, want the unresolved source language error naming app.json", tt.name, err)
 			}
@@ -986,14 +938,13 @@ func TestConfiguredLanguageSatisfiesSourceLanguageCheck(t *testing.T) {
 }
 
 func TestSyncWarnsWhenAccentLacksALocalLanguage(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
 
-	out, err := captureStdout(t, func() error { return runSync(nil, nil) })
+	out, err := captureStdout(t, func() error { return runCLI("sync") })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1040,7 +991,6 @@ func statusBlock(out, path string) string {
 }
 
 func TestStatusReportsLanguageMissingFromProject(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -1049,7 +999,7 @@ func TestStatusReportsLanguageMissingFromProject(t *testing.T) {
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
 
-	out, err := captureStdout(t, func() error { return runStatus(nil, nil) })
+	out, err := captureStdout(t, func() error { return runCLI("status") })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1063,13 +1013,12 @@ func TestStatusReportsLanguageMissingFromProject(t *testing.T) {
 }
 
 func TestStatusCountsTranslationsOfUnsyncedDocument(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
 
-	out, err := captureStdout(t, func() error { return runStatus(nil, nil) })
+	out, err := captureStdout(t, func() error { return runCLI("status") })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1081,18 +1030,15 @@ func TestStatusCountsTranslationsOfUnsyncedDocument(t *testing.T) {
 
 func TestNonJSONExportStopsBeforeAnyUpload(t *testing.T) {
 	tests := []struct {
-		name  string
-		run   func(*cobra.Command, []string) error
-		flags func()
+		name string
+		args []string
 	}{
-		{"sync", runSync, func() {}},
-		{"sync --force", runSync, func() { syncForce, syncYes = true, true }},
-		{"cleanup", runCleanup, func() {}},
+		{"sync", []string{"sync"}},
+		{"sync --force", []string{"sync", "--force", "--yes"}},
+		{"cleanup", []string{"cleanup"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resetFlags(t)
-			tt.flags()
 			var uploads atomic.Int32
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost {
@@ -1106,7 +1052,7 @@ func TestNonJSONExportStopsBeforeAnyUpload(t *testing.T) {
 			writeLocalFile(t, "en", "app", `{"a":"A"}`)
 			writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-			err := tt.run(nil, nil)
+			err := runCLI(tt.args...)
 			if err == nil || !strings.Contains(err.Error(), "not valid JSON") {
 				t.Errorf("%s error = %v, want the invalid export reported", tt.name, err)
 			}
@@ -1121,7 +1067,6 @@ func TestNonJSONExportStopsBeforeAnyUpload(t *testing.T) {
 }
 
 func TestPullKeepsLocalFilesWhenExportIsNotJSON(t *testing.T) {
-	resetFlags(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("<html>Sign in</html>"))
 	}))
@@ -1130,7 +1075,7 @@ func TestPullKeepsLocalFilesWhenExportIsNotJSON(t *testing.T) {
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-	err := runPull(nil, nil)
+	err := runCLI("pull")
 	if err == nil || !strings.Contains(err.Error(), "not valid JSON") {
 		t.Errorf("pull error = %v, want the invalid export reported", err)
 	}
@@ -1144,7 +1089,6 @@ func TestPullKeepsLocalFilesWhenExportIsNotJSON(t *testing.T) {
 func TestPullTreatsUnsetAndUppercaseFormatAsJSON(t *testing.T) {
 	for _, format := range []string{"", "JSON"} {
 		t.Run("format="+format, func(t *testing.T) {
-			resetFlags(t)
 			var sent atomic.Value
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				sent.Store(r.URL.Query().Get("document_format"))
@@ -1154,7 +1098,7 @@ func TestPullTreatsUnsetAndUppercaseFormatAsJSON(t *testing.T) {
 			setupProjectWithFormat(t, srv.URL, format)
 			writeLocalFile(t, "en", "app", `{"a":"A"}`)
 
-			err := runPull(nil, nil)
+			err := runCLI("pull")
 			if got, _ := sent.Load().(string); got != "json" {
 				t.Errorf("document_format sent = %q, want \"json\"", got)
 			}
@@ -1169,7 +1113,6 @@ func TestPullTreatsUnsetAndUppercaseFormatAsJSON(t *testing.T) {
 }
 
 func TestPullWarnsWhenAccentLacksALocalLanguage(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
 	fake.seed("app", "fr", [][2]string{{"a", "A-fr"}})
@@ -1178,7 +1121,7 @@ func TestPullWarnsWhenAccentLacksALocalLanguage(t *testing.T) {
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 	writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
 
-	out, err := captureStdout(t, func() error { return runPull(nil, nil) })
+	out, err := captureStdout(t, func() error { return runCLI("pull") })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1191,13 +1134,12 @@ func TestPullWarnsWhenAccentLacksALocalLanguage(t *testing.T) {
 }
 
 func TestPullStaysQuietForUnsyncedDocument(t *testing.T) {
-	resetFlags(t)
 	fake := newFakeAccent(t, "en", "fr")
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-	out, err := captureStdout(t, func() error { return runPull(nil, nil) })
+	out, err := captureStdout(t, func() error { return runCLI("pull") })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1216,7 +1158,6 @@ func TestSyncWarnsOnceAboutAMissingLanguage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resetFlags(t)
 			fake := newFakeAccent(t, "en", "fr")
 			if tt.seed {
 				fake.seed("app", "en", [][2]string{{"a", "A"}})
@@ -1227,7 +1168,7 @@ func TestSyncWarnsOnceAboutAMissingLanguage(t *testing.T) {
 			writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 			writeLocalFile(t, "de", "app", `{"a":"A-de"}`)
 
-			out, err := captureStdout(t, func() error { return runSync(nil, nil) })
+			out, err := captureStdout(t, func() error { return runCLI("sync") })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1239,14 +1180,12 @@ func TestSyncWarnsOnceAboutAMissingLanguage(t *testing.T) {
 }
 
 func TestTranslationsOnlyForUnsyncedDocumentDoesNotBlameLanguage(t *testing.T) {
-	resetFlags(t)
-	syncTranslationsOnly = true
 	fake := newFakeAccent(t, "en", "fr")
 	setupProject(t, fake.URL())
 	writeLocalFile(t, "en", "app", `{"a":"A"}`)
 	writeLocalFile(t, "fr", "app", `{"a":"A-fr"}`)
 
-	out, err := captureStdout(t, func() error { return runSync(nil, nil) })
+	out, err := captureStdout(t, func() error { return runCLI("sync", "--translations-only") })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1273,14 +1212,13 @@ func TestCommandsWordTheSameFailureAlike(t *testing.T) {
 			writeLocalFile(t, "en", "app", `{"a": `)
 		},
 	}
-	commands := map[string]func(*cobra.Command, []string) error{"sync": runSync, "cleanup": runCleanup, "status": runStatus}
+	commands := map[string][]string{"sync": {"sync"}, "cleanup": {"cleanup"}, "status": {"status"}}
 	for name, setup := range scenarios {
 		t.Run(name, func(t *testing.T) {
 			errs := map[string]string{}
-			for cmd, run := range commands {
-				resetFlags(t)
+			for cmd, args := range commands {
 				setup(t)
-				err := run(nil, nil)
+				err := runCLI(args...)
 				if err == nil {
 					t.Fatalf("%s succeeded, want an error", cmd)
 				}

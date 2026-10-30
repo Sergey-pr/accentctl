@@ -32,10 +32,7 @@ func TestReadAPIKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keyStdin = tt.stdin
-			t.Cleanup(func() { keyStdin = false })
-
-			got, err := readAPIKey(tt.args, strings.NewReader(tt.input))
+			got, err := readAPIKey(tt.args, strings.NewReader(tt.input), tt.stdin)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("err = %v, want it to mention %q", err, tt.wantErr)
@@ -114,7 +111,7 @@ func TestKeySetFromSubdirectorySavesWhereConfigIsLoaded(t *testing.T) {
 	}
 	t.Chdir(sub)
 
-	if err := runKeySet(nil, []string{"secret"}); err != nil {
+	if err := runCLI("key", "set", "secret"); err != nil {
 		t.Fatal(err)
 	}
 

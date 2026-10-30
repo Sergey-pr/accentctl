@@ -15,27 +15,34 @@ import (
 	"github.com/sergey-pr/accentctl/internal/output"
 )
 
-var pullCmd = &cobra.Command{
-	Use:   "pull",
-	Short: "Pull files from Accent to your local filesystem",
-	Example: `  accentctl pull
+type pullOptions struct {
+	orderBy string
+	verbose bool
+}
+
+func newPullCmd(global *globalOptions) *cobra.Command {
+	var opts pullOptions
+	cmd := &cobra.Command{
+		Use:   "pull",
+		Short: "Pull files from Accent to your local filesystem",
+		Example: `  accentctl pull
   accentctl pull --order-by key`,
-	RunE: runPull,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			opts.verbose = global.verbose
+			return runPull(opts)
+		},
+	}
+	cmd.Flags().StringVar(&opts.orderBy, "order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
+	return cmd
 }
 
-var pullOrderBy string
-
-func init() {
-	pullCmd.Flags().StringVar(&pullOrderBy, "order-by", "key", "Order of pulled keys: index, -index, key, -key, updated, -updated")
-}
-
-func runPull(_ *cobra.Command, _ []string) error {
+func runPull(opts pullOptions) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	client := newClient(cfg)
+	client := newClient(cfg, opts.verbose)
 	output.Section("Pulling files")
 	warned := map[string]bool{}
 
@@ -44,7 +51,7 @@ func runPull(_ *cobra.Command, _ []string) error {
 			return fmt.Errorf("beforePull hook failed: %w", err)
 		}
 
-		if err := pullFile(client, file, pullOrderBy, warned); err != nil {
+		if err := pullFile(client, file, opts.orderBy, warned); err != nil {
 			return err
 		}
 

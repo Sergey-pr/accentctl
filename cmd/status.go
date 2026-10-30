@@ -12,14 +12,18 @@ import (
 	"github.com/sergey-pr/accentctl/internal/output"
 )
 
-var statusCmd = &cobra.Command{
-	Use:     "status",
-	Short:   "Show how many keys need pushing or deleting per language file",
-	Example: `  accentctl status`,
-	RunE:    runStatus,
+func newStatusCmd(global *globalOptions) *cobra.Command {
+	return &cobra.Command{
+		Use:     "status",
+		Short:   "Show how many keys need pushing or deleting per language file",
+		Example: `  accentctl status`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runStatus(global.verbose)
+		},
+	}
 }
 
-func runStatus(_ *cobra.Command, _ []string) error {
+func runStatus(verbose bool) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -33,7 +37,7 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	client := newClient(cfg)
+	client := newClient(cfg, verbose)
 	output.Section("Status")
 
 	for _, file := range cfg.Files {
