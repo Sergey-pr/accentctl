@@ -127,18 +127,31 @@ func runFullSync(client *api.Client, cfg *config.Config, opts syncOptions) (sync
 	var progress syncProgress
 	warned := map[string]bool{}
 
-	output.Section("Syncing files")
-
-	type fileNewKeys struct {
-		file   config.File
-		keySet map[string]bool
+	results, uploaded, err := uploadNewKeys(client, cfg, opts)
+	progress.keysUploaded = uploaded
+	if err != nil {
+		return progress, err
 	}
-	var results []fileNewKeys
 
+	if err := pushNewTranslations(client, results, opts, warned); err != nil {
+		return progress, err
+	}
+	progress.translationsPushed = true
+
+	return progress, finishSync(client, cfg, opts.orderBy, warned)
+}
+
+type fileNewKeys struct {
+	file   config.File
+	keySet map[string]bool
+}
+
+func uploadNewKeys(client *api.Client, cfg *config.Config, opts syncOptions) (results []fileNewKeys, uploaded bool, err error) {
+	output.Section("Syncing files")
 	for _, file := range cfg.Files {
 		sources, err := file.Sources()
 		if err != nil {
-			return progress, err
+			return nil, uploaded, err
 		}
 
 		keySet := map[string]bool{}
@@ -147,16 +160,14 @@ func runFullSync(client *api.Client, cfg *config.Config, opts syncOptions) (sync
 
 			if opts.force {
 				if err := deleteAllKeysChunked(client, doc, opts.verbose); err != nil {
-					return progress, err
+					return nil, uploaded, err
 				}
 			}
 
-			newNodes, uploaded, err := syncFileChunked(client, doc, opts.force, opts.verbose)
-			if uploaded {
-				progress.keysUploaded = true
-			}
+			newNodes, docUploaded, err := syncFileChunked(client, doc, opts.force, opts.verbose)
+			uploaded = uploaded || docUploaded
 			if err != nil {
-				return progress, err
+				return nil, uploaded, err
 			}
 			for _, n := range newNodes {
 				keySet[helpers.NodeKey(n.Path)] = true
@@ -164,22 +175,23 @@ func runFullSync(client *api.Client, cfg *config.Config, opts syncOptions) (sync
 		}
 		results = append(results, fileNewKeys{file, keySet})
 	}
+	return results, uploaded, nil
+}
 
+func pushNewTranslations(client *api.Client, results []fileNewKeys, opts syncOptions, warned map[string]bool) error {
 	output.Section("Adding translations")
 	for _, r := range results {
 		if opts.force {
 			if err := helpers.AddAllTranslations(client, r.file, "force", opts.verbose, warned); err != nil {
-				return progress, err
+				return err
 			}
 		} else if len(r.keySet) > 0 {
 			if err := helpers.AddTranslationsForNewKeys(client, r.file, r.keySet, opts.verbose, warned); err != nil {
-				return progress, err
+				return err
 			}
 		}
 	}
-	progress.translationsPushed = true
-
-	return progress, finishSync(client, cfg, opts.orderBy, warned)
+	return nil
 }
 
 // runSyncTranslationsOnly recovers a sync that died between uploading keys and
