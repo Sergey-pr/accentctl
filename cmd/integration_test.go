@@ -508,6 +508,30 @@ func TestSyncFailureAfterKeyUploadSuggestsRecovery(t *testing.T) {
 	}
 }
 
+func TestSyncFailureOnLaterDocumentStillSuggestsRecovery(t *testing.T) {
+	fake := newFakeAccent(t, "en", "fr")
+	setupProject(t, fake.URL())
+	writeLocalFile(t, "en", "app", `{"a":"A"}`)
+	writeLocalFile(t, "en", "web", `{"w":"W"}`)
+
+	fake.onUpload(func(c uploadCall) {
+		if c.Endpoint == "sync" {
+			fake.failEndpoint("/export")
+		}
+	})
+
+	err := runCLI("sync")
+	if err == nil {
+		t.Fatal("expected sync to fail when /export errors for the second document")
+	}
+	if calls := fake.callsTo("sync"); len(calls) != 1 {
+		t.Fatalf("sync calls = %+v, want exactly one document uploaded before the failure", calls)
+	}
+	if !strings.Contains(err.Error(), "--translations-only") {
+		t.Errorf("error = %q, want the recovery hint: the first document's keys are already on the server", err)
+	}
+}
+
 func TestSyncFailureBeforeAnyKeyUploadDoesNotSuggestRecovery(t *testing.T) {
 	fake := newFakeAccent(t, "en", "fr")
 	fake.seed("app", "en", [][2]string{{"a", "A"}})
