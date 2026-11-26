@@ -120,7 +120,8 @@ func (c *Client) uploadDocument(path, filePath, documentPath, format, language s
 	return c.postOperation(c.apiURL+path, body, contentType)
 }
 
-// exportRequest performs GET /export and returns the raw response.
+// exportRequest performs GET /export. A 404 returns ErrNotFound and any other
+// error status returns an error, with the response body already closed.
 func (c *Client) exportRequest(documentPath, format, language, orderBy string) (*http.Response, error) {
 	q := url.Values{}
 	q.Set("document_path", documentPath)
@@ -135,7 +136,20 @@ func (c *Client) exportRequest(documentPath, format, language, orderBy string) (
 		return nil, err
 	}
 	c.setAuth(req)
-	return c.http.Do(req)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, httpError("export failed", resp)
+	}
+	return resp, nil
 }
 
 // ExportBytes fetches a translated file from Accent and returns its raw contents.
@@ -148,13 +162,6 @@ func (c *Client) ExportBytes(documentPath, format, language string) ([]byte, err
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrNotFound
-	}
-	if resp.StatusCode >= 400 {
-		return nil, httpError("export failed", resp)
-	}
 	return io.ReadAll(resp.Body)
 }
 
@@ -167,13 +174,6 @@ func (c *Client) Export(destPath, documentPath, format, language string, opts Ex
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return ErrNotFound
-	}
-	if resp.StatusCode >= 400 {
-		return httpError("export failed", resp)
-	}
 
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return err
